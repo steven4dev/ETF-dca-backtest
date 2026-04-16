@@ -18,9 +18,10 @@ class NpEncoder(json.JSONEncoder):
         return super().default(obj)
 
 # ── 常數 ─────────────────────────────────────────────────────────────
-CSV_PATH    = "0052 ETF Stock Price History.csv"
-SPLIT_DATE  = pd.Timestamp('2025-11-12')
+CSV_PATH    = "0052_5yr.csv"
+SPLIT_DATE  = pd.Timestamp('2025-11-17')
 SPLIT_RATIO = 7
+BACKTEST_YEARS = 5
 
 GROUPS = {
     "組合一": [1, 6, 11, 16, 21, 26, 31],
@@ -39,17 +40,17 @@ GROUP_DAYS_LABEL = {
 
 # ── 讀取 & 拆分調整 ────────────────────────────────────────────────────
 df_raw = pd.read_csv(CSV_PATH)
-df_raw.columns = [c.strip().strip('"') for c in df_raw.columns]
-df_raw.rename(columns={'Price': 'Close'}, inplace=True)
-df_raw['Date']  = pd.to_datetime(df_raw['Date'], format='%m/%d/%Y')
-df_raw['Close'] = df_raw['Close'].astype(str).str.replace(',', '').astype(float)
+df_raw['Date']  = pd.to_datetime(df_raw['Date'])
+df_raw['Close'] = pd.to_numeric(df_raw['Close'], errors='coerce')
 df_raw.sort_values('Date', inplace=True)
 df_raw.reset_index(drop=True, inplace=True)
+df_raw = df_raw.dropna(subset=['Close'])
 
+# Yahoo Finance 未做向後還原，手動套用拆分調整
 df_raw.loc[df_raw['Date'] < SPLIT_DATE, 'Close'] /= SPLIT_RATIO
 
-latest_date   = df_raw['Date'].max()
-backtest_start = max(df_raw['Date'].min(), latest_date - pd.DateOffset(years=3))
+latest_date    = df_raw['Date'].max()
+backtest_start = max(df_raw['Date'].min(), latest_date - pd.DateOffset(years=BACKTEST_YEARS))
 actual_years  = (latest_date - backtest_start).days / 365.25
 
 df = df_raw[df_raw['Date'] >= backtest_start].copy().reset_index(drop=True)
@@ -261,7 +262,8 @@ footer{{
 <header>
   <h1>0052 富邦科技<span class="badge">ETF</span> 定期定額回測分析</h1>
   <p>回測期間：{backtest_start.strftime('%Y-%m-%d')} ～ {latest_date.strftime('%Y-%m-%d')}
-     &nbsp;|&nbsp; {actual_years:.1f} 年 &nbsp;|&nbsp; 五組扣款日比較</p>
+     &nbsp;|&nbsp; {actual_years:.1f} 年 &nbsp;|&nbsp; 五組扣款日比較
+     &nbsp;|&nbsp; 資料來源：Yahoo Finance（已還原7:1拆分）</p>
 </header>
 
 <!-- 投入金額設定 -->
