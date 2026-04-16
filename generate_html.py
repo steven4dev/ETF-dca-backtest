@@ -21,7 +21,6 @@ class NpEncoder(json.JSONEncoder):
 CSV_PATH    = "0052_5yr.csv"
 SPLIT_DATE  = pd.Timestamp('2025-11-17')
 SPLIT_RATIO = 7
-BACKTEST_YEARS = 5
 
 GROUPS = {
     "組合一": [1, 6, 11, 16, 21, 26, 31],
@@ -49,24 +48,24 @@ df_raw = df_raw.dropna(subset=['Close'])
 # Yahoo Finance 未做向後還原，手動套用拆分調整
 df_raw.loc[df_raw['Date'] < SPLIT_DATE, 'Close'] /= SPLIT_RATIO
 
-latest_date    = df_raw['Date'].max()
-backtest_start = max(df_raw['Date'].min(), latest_date - pd.DateOffset(years=BACKTEST_YEARS))
-actual_years  = (latest_date - backtest_start).days / 365.25
-
-df = df_raw[df_raw['Date'] >= backtest_start].copy().reset_index(drop=True)
+latest_date   = df_raw['Date'].max()
+earliest_date = df_raw['Date'].min()
+# 輸出全部資料給 JS，讓 JS 依使用者選擇年份篩選
+df = df_raw.copy()
 trading_dates = pd.DatetimeIndex(df['Date'].values)
 close_map     = dict(zip(df['Date'].dt.strftime('%Y-%m-%d'), df['Close'].round(4)))
 final_price   = float(df['Close'].iloc[-1])
+data_years    = (latest_date - earliest_date).days / 365.25
 
-# ── 建立每日收盤價序列（for JS 曲線計算）─────────────────────────────
+# ── 建立每日收盤價序列（全部，JS 端篩選）────────────────────────────
 daily_prices = [
     {"d": row['Date'].strftime('%Y-%m-%d'), "p": round(float(row['Close']), 4)}
     for _, row in df.iterrows()
 ]
 
-# ── 建立各組交易日程（date, price）──────────────────────────────────────
+# ── 建立各組交易日程（全部 5 年，JS 端依期間篩選）──────────────────
 def build_trade_schedule(payment_days):
-    """回傳 [{d: '2023-04-17', p: 20.14}, ...] 已去重合併同日"""
+    """回傳 [{d, p, n}] 全部 5 年，JS 端再依 cutoff 截斷"""
     trades = {}
     start = df['Date'].min()
     end   = latest_date
@@ -102,9 +101,9 @@ daily_json    = json.dumps(daily_prices, ensure_ascii=False, cls=NpEncoder)
 schedules_json = json.dumps(schedules,   ensure_ascii=False, cls=NpEncoder)
 days_label_json = json.dumps(GROUP_DAYS_LABEL, ensure_ascii=False)
 
-print(f"資料範圍：{backtest_start.date()} ～ {latest_date.date()}（{actual_years:.2f} 年）")
+print(f"資料範圍：{earliest_date.date()} ～ {latest_date.date()}（{data_years:.2f} 年）")
 print(f"最後收盤：NT$ {final_price}")
-print(f"每組交易次數：{ {g: len(v) for g,v in schedules.items()} }")
+print(f"每組交易次數（全期）：{ {g: len(v) for g,v in schedules.items()} }")
 
 # ── HTML ──────────────────────────────────────────────────────────────
 HTML = f"""<!DOCTYPE html>
@@ -157,6 +156,15 @@ header p{{ color:var(--muted); margin-top:.3rem; font-size:.9rem; }}
   color:#fff; font-size:1rem; font-weight:700;
   width:120px; text-align:right;
 }}
+.sep{{ width:1px; height:24px; background:var(--border); }}
+.year-btns{{ display:flex; gap:.4rem; }}
+.year-btn{{
+  background:var(--border); color:var(--muted); border:none;
+  padding:.35rem .75rem; border-radius:6px; cursor:pointer;
+  font-size:.82rem; font-weight:600; transition:all .15s;
+}}
+.year-btn.active{{ background:var(--accent); color:#fff; }}
+.year-btn:hover:not(.active){{ background:#3a3d50; color:var(--text); }}
 /* Chrome 隱藏 number spinner */
 .invest-input-wrap input::-webkit-outer-spin-button,
 .invest-input-wrap input::-webkit-inner-spin-button{{ -webkit-appearance:none; }}
@@ -261,19 +269,27 @@ footer{{
 
 <header>
   <h1>0052 富邦科技<span class="badge">ETF</span> 定期定額回測分析</h1>
-  <p>回測期間：{backtest_start.strftime('%Y-%m-%d')} ～ {latest_date.strftime('%Y-%m-%d')}
-     &nbsp;|&nbsp; {actual_years:.1f} 年 &nbsp;|&nbsp; 五組扣款日比較
+  <p id="header-sub">資料最早：{earliest_date.strftime('%Y-%m-%d')} ～ {latest_date.strftime('%Y-%m-%d')}
+     &nbsp;|&nbsp; 可回測最長 {data_years:.1f} 年 &nbsp;|&nbsp; 五組扣款日比較
      &nbsp;|&nbsp; 資料來源：Yahoo Finance（已還原7:1拆分）</p>
 </header>
 
-<!-- 投入金額設定 -->
+<!-- 設定列 -->
 <div class="invest-bar">
+  <label>回測期間</label>
+  <div class="year-btns" id="year-btns">
+    <button class="year-btn" data-y="1">1 年</button>
+    <button class="year-btn" data-y="2">2 年</button>
+    <button class="year-btn active" data-y="3">3 年</button>
+    <button class="year-btn" data-y="5">5 年</button>
+  </div>
+  <div class="sep"></div>
   <label for="invest-amt">每次投入金額</label>
   <div class="invest-input-wrap">
     <span>NT$</span>
-    <input type="number" id="invest-amt" value="10000" min="1000" step="1000">
+    <input type="number" id="invest-amt" value="10000" min="100" step="1000">
   </div>
-  <span class="invest-hint">修改金額後自動重新計算所有指標</span>
+  <span class="invest-hint">修改後即時重算</span>
 </div>
 
 <div class="container">
@@ -333,21 +349,35 @@ footer{{
 
 <script>
 // ════════════════════════════════════════════════════════════════
-//  靜態資料（Python 產生）
+//  靜態資料（Python 產生，全部 5 年）
 // ════════════════════════════════════════════════════════════════
-const DAILY      = {daily_json};          // [{{d:'2023-04-17', p:20.14}}, ...]
-const SCHEDULES  = {schedules_json};      // {{組合一:[{{d,p,n}}, ...], ...}}
-const DAYS_LABEL = {days_label_json};
+const DAILY_ALL   = {daily_json};         // [{{d:'2021-04-16', p:18.4}}, ...]  全 5 年
+const SCHEDULES_ALL = {schedules_json};   // {{組合一:[{{d,p,n}}, ...], ...}}  全 5 年
+const DAYS_LABEL  = {days_label_json};
 const FINAL_PRICE = {final_price};
-const ACTUAL_YEARS = {actual_years:.6f};
-const GNAMES = Object.keys(SCHEDULES);
+const DATA_YEARS  = {data_years:.4f};     // 可用最長年數（約 5）
+const GNAMES = Object.keys(SCHEDULES_ALL);
 const COLORS = ['#4f8ef7','#22c55e','#f59e0b','#e879f9','#fb923c'];
-const DATE_LABELS = DAILY.map(d => d.d);
+
+// ── 依年數篩選資料 ────────────────────────────────────────────────
+function sliceByYears(years) {{
+  const latestD = DAILY_ALL[DAILY_ALL.length - 1].d;
+  const latestTs = new Date(latestD).getTime();
+  const cutoffTs = latestTs - years * 365.25 * 86400 * 1000;
+  const cutoffD  = new Date(cutoffTs).toISOString().slice(0, 10);
+
+  const daily = DAILY_ALL.filter(d => d.d >= cutoffD);
+  const schedules = {{}};
+  for (const g of GNAMES) {{
+    schedules[g] = SCHEDULES_ALL[g].filter(t => t.d >= cutoffD);
+  }}
+  return {{ daily, schedules, cutoffD, actualYears: (latestTs - new Date(daily[0].d).getTime()) / (365.25 * 86400 * 1000) }};
+}}
 
 // ════════════════════════════════════════════════════════════════
-//  DCA 計算（純 JS，依金額即時重算）
+//  DCA 計算（純 JS，依金額 & 年數即時重算）
 // ════════════════════════════════════════════════════════════════
-function runDCA(schedule, amtPerTrade) {{
+function runDCA(schedule, daily, amtPerTrade, actualYears) {{
   // schedule: [{{d, p, n}}]  n = 該交易日合併幾個扣款點
   const tradeMap = {{}};
   for (const t of schedule) {{
@@ -358,7 +388,7 @@ function runDCA(schedule, amtPerTrade) {{
   const mv = [];          // 每日市值（NT$）
   const cc = [];          // 每日累積成本
 
-  for (const day of DAILY) {{
+  for (const day of daily) {{
     if (tradeMap[day.d]) {{
       const t = tradeMap[day.d];
       const cost   = amtPerTrade * t.count;
@@ -375,8 +405,8 @@ function runDCA(schedule, amtPerTrade) {{
   const avgCost     = totalShares > 0 ? totalCost / totalShares : 0;
   const finalValue  = totalShares * FINAL_PRICE;
   const returnPct   = (finalValue - totalCost) / totalCost * 100;
-  const cagr        = ACTUAL_YEARS > 0
-    ? (Math.pow(finalValue / totalCost, 1 / ACTUAL_YEARS) - 1) * 100 : 0;
+  const cagr        = actualYears > 0
+    ? (Math.pow(finalValue / totalCost, 1 / actualYears) - 1) * 100 : 0;
 
   // Max Drawdown
   let peak = -Infinity, maxDD = 0;
@@ -443,7 +473,10 @@ function makeLineChart(id, labels, datasets, yFmt, tall) {{
   }});
 }}
 
-// 初始化圖表（空資料，稍後 render() 填入）
+// ── 目前狀態 ──────────────────────────────────────────────────────
+let currentYears = 3;
+
+// 初始化圖表（空資料，render() 填入）
 const chartReturn = makeBarChart('chart-return', GNAMES,
   new Array(5).fill(0), COLORS, v => v.toFixed(2)+'%');
 const chartCagr   = makeBarChart('chart-cagr',   GNAMES,
@@ -452,7 +485,7 @@ const chartDD     = makeBarChart('chart-dd',     GNAMES,
   new Array(5).fill(0), COLORS, v => v.toFixed(2)+'%');
 
 const mkWanFmt = () => v => {{
-  if (Math.abs(v) >= 10000) return (v/10000).toFixed(1) + '億';
+  if (Math.abs(v) >= 100000000) return (v/100000000).toFixed(2) + '億';
   return (v/10000).toFixed(1) + '萬';
 }};
 
@@ -466,7 +499,7 @@ const curveDatasetsInit = [
     borderColor:'#475569', backgroundColor:'transparent',
     borderDash:[5,5], borderWidth:1.5, pointRadius:0 }},
 ];
-const chartCurve = makeLineChart('chart-curve', DATE_LABELS,
+const chartCurve = makeLineChart('chart-curve', [],
   curveDatasetsInit, mkWanFmt(), true);
 
 const vsInit = [
@@ -477,7 +510,7 @@ const vsInit = [
   {{ label:'累積成本', data:[], borderColor:'#475569',
     backgroundColor:'transparent', borderDash:[5,5], borderWidth:1.5, pointRadius:0 }},
 ];
-const chartVS = makeLineChart('chart-vs', DATE_LABELS, vsInit, mkWanFmt(), false);
+const chartVS = makeLineChart('chart-vs', [], vsInit, mkWanFmt(), false);
 
 // ── Tabs ─────────────────────────────────────────────────────────
 const tabRow = document.getElementById('curve-tabs');
@@ -499,11 +532,15 @@ const tabRow = document.getElementById('curve-tabs');
 // ════════════════════════════════════════════════════════════════
 //  主 render 函式
 // ════════════════════════════════════════════════════════════════
-function render(amtPerTrade) {{
+function render(amtPerTrade, years) {{
+  // 依年數篩選資料
+  const {{ daily, schedules, actualYears }} = sliceByYears(years);
+  const dateLabels = daily.map(d => d.d);
+
   // 計算所有組合
   const allR = {{}};
   for (const g of GNAMES) {{
-    allR[g] = runDCA(SCHEDULES[g], amtPerTrade);
+    allR[g] = runDCA(schedules[g], daily, amtPerTrade, actualYears);
   }}
 
   const bestG  = GNAMES.reduce((a,b) => allR[a].returnPct > allR[b].returnPct ? a : b);
@@ -516,7 +553,7 @@ function render(amtPerTrade) {{
   const kpiRow = document.getElementById('kpi-row');
   kpiRow.innerHTML = [
     {{ v:'NT$ '+FINAL_PRICE.toFixed(2),         l:'最後收盤價',    c:'neu' }},
-    {{ v:ACTUAL_YEARS.toFixed(1)+' 年',         l:'回測期間',      c:'neu' }},
+    {{ v:actualYears.toFixed(1)+' 年',          l:'回測期間',      c:'neu' }},
     {{ v:'NT$ '+amtPerTrade.toLocaleString(),    l:'每次投入金額',  c:'neu' }},
     {{ v:bestG,                                  l:'最佳組合',      c:'pos' }},
     {{ v:FMTP(bestR.returnPct),                  l:'最佳報酬率',
@@ -564,6 +601,7 @@ function render(amtPerTrade) {{
     (g,i) => g===safeG ? '#4f8ef7' : '#ef4444');
 
   // ── Curve chart ────────────────────────────────────────────────
+  chartCurve.data.labels = dateLabels;
   GNAMES.forEach((g,i) => {{
     chartCurve.data.datasets[i].data = allR[g].mv;
   }});
@@ -571,6 +609,7 @@ function render(amtPerTrade) {{
   chartCurve.update('none');
 
   // ── VS chart ───────────────────────────────────────────────────
+  chartVS.data.labels = dateLabels;
   chartVS.data.datasets[0].label = bestG  + '（最佳）';
   chartVS.data.datasets[1].label = worstG + '（最差）';
   chartVS.data.datasets[0].data  = allR[bestG].mv;
@@ -622,19 +661,30 @@ function render(amtPerTrade) {{
   ].map(c=>`<div class="c-card"><h3>${{c.t}}</h3>${{c.h}}</div>`).join('');
 }}
 
-// ── 監聽輸入 ─────────────────────────────────────────────────────
+// ── 年份按鈕 ──────────────────────────────────────────────────────
+document.querySelectorAll('.year-btn').forEach(btn => {{
+  btn.addEventListener('click', () => {{
+    document.querySelectorAll('.year-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentYears = parseFloat(btn.dataset.y);
+    const amt = parseInt(document.getElementById('invest-amt').value, 10);
+    if (amt >= 100) render(amt, currentYears);
+  }});
+}});
+
+// ── 金額輸入 ──────────────────────────────────────────────────────
 const input = document.getElementById('invest-amt');
 let debounce;
 input.addEventListener('input', () => {{
   clearTimeout(debounce);
   debounce = setTimeout(() => {{
     const v = parseInt(input.value, 10);
-    if (v >= 100) render(v);
+    if (v >= 100) render(v, currentYears);
   }}, 300);
 }});
 
-// 首次渲染
-render(10000);
+// 首次渲染（預設 3 年、NT$10,000）
+render(10000, 3);
 </script>
 </body>
 </html>"""
