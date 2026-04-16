@@ -44,6 +44,12 @@ df_raw['Close'] = df_raw['Close'].astype(str).str.replace(',','').astype(float)
 df_raw.sort_values('Date', inplace=True)
 df_raw.reset_index(drop=True, inplace=True)
 
+# ── 股票拆分調整（7:1，2025-11-12）────────────────────────────────────
+SPLIT_DATE  = pd.Timestamp('2025-11-12')
+SPLIT_RATIO = 7
+pre_split = df_raw['Date'] < SPLIT_DATE
+df_raw.loc[pre_split, 'Close'] = df_raw.loc[pre_split, 'Close'] / SPLIT_RATIO
+
 latest_date    = df_raw['Date'].max()
 earliest_date  = df_raw['Date'].min()
 target_start   = latest_date - pd.DateOffset(years=3)
