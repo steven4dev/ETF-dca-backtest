@@ -532,7 +532,7 @@ function makeBar(id, labels, datasets, fmtFn) {{
     options:{{
       responsive:true, maintainAspectRatio:false,
       plugins:{{
-        legend:{{labels:{{color:'#94a3b8',boxWidth:10,font:{{size:11}}}}}},
+        legend:{{display:false}},
         tooltip:{{callbacks:{{label:c=>' '+fmtFn(c.raw)}}}},
       }},
       scales:{{
