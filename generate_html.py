@@ -310,6 +310,7 @@ footer{{
 <div class="ctrl-bar">
   <div class="ctrl-group">
     <span class="ctrl-label">選擇標的</span>
+    <button class="year-btn" id="btn-select-all">全選</button>
     <div class="etf-checks" id="etf-checks"></div>
   </div>
   <div class="sep"></div>
@@ -466,9 +467,43 @@ Object.values(ETF_DB)
       item.classList.remove('checked');
     }}
     if (!selectedETFs.includes(focusETF)) focusETF = selectedETFs[0];
+    syncSelectAllBtn();
     render();
   }});
 }});
+
+// ── 全選 / 全取消 ─────────────────────────────────────────────────
+const allETFIds = Object.keys(ETF_DB);
+const btnSelectAll = document.getElementById('btn-select-all');
+
+function syncSelectAllBtn() {{
+  const allChecked = allETFIds.every(id => selectedETFs.includes(id));
+  btnSelectAll.textContent = allChecked ? '全取消' : '全選';
+  btnSelectAll.classList.toggle('active', allChecked);
+}}
+
+btnSelectAll.addEventListener('click', () => {{
+  const allChecked = allETFIds.every(id => selectedETFs.includes(id));
+  if (allChecked) {{
+    // 全取消 → 只保留第一個
+    selectedETFs = [allETFIds[0]];
+  }} else {{
+    // 全選
+    selectedETFs = [...allETFIds];
+  }}
+  // 同步 checkbox UI
+  document.querySelectorAll('.etf-check-item').forEach(item => {{
+    const id = item.dataset.id;
+    const cb = item.querySelector('input');
+    const checked = selectedETFs.includes(id);
+    cb.checked = checked;
+    item.classList.toggle('checked', checked);
+  }});
+  if (!selectedETFs.includes(focusETF)) focusETF = selectedETFs[0];
+  syncSelectAllBtn();
+  render();
+}});
+syncSelectAllBtn();
 
 // ════════════════════════════════════════════════════════════════
 //  資料篩選（依年數）
