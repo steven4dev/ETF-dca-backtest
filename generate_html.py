@@ -316,6 +316,8 @@ footer{{
   <div class="ctrl-group">
     <span class="ctrl-label">回測期間</span>
     <div class="year-btns" id="year-btns">
+      <button class="year-btn" data-y="0.25">3 月</button>
+      <button class="year-btn" data-y="0.5">6 月</button>
       <button class="year-btn" data-y="1">1 年</button>
       <button class="year-btn" data-y="2">2 年</button>
       <button class="year-btn active" data-y="3">3 年</button>
