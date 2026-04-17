@@ -19,12 +19,13 @@ class NpEncoder(json.JSONEncoder):
 
 # ── ETF 設定表 ────────────────────────────────────────────────────
 ETF_CONFIG = {
-    '0050':   {'name':'0050 元大台灣50',     'csv':'0050_data.csv',   'split_date':None,           'split_ratio':1},
-    '0052':   {'name':'0052 富邦科技',        'csv':'0052_data.csv',   'split_date':'2025-11-17',   'split_ratio':7},
-    '009813': {'name':'009813 街口布局全球',  'csv':'009813_data.csv', 'split_date':None,           'split_ratio':1},
-    '00770':  {'name':'00770 富邦台灣加權',   'csv':'00770_data.csv',  'split_date':None,           'split_ratio':1},
-    '009810': {'name':'009810 街口ESG永續',   'csv':'009810_data.csv', 'split_date':None,           'split_ratio':1},
-    '00988A': {'name':'00988A 野村優息存股A', 'csv':'00988A_data.csv', 'split_date':None,           'split_ratio':1},
+    '0050':   {'name':'0050 元大台灣50',       'csv':'0050_data.csv',   'split_date':None,         'split_ratio':1},
+    '0052':   {'name':'0052 富邦科技',          'csv':'0052_data.csv',   'split_date':'2025-11-17', 'split_ratio':7},
+    '00631L': {'name':'00631L 元大台灣50正2',   'csv':'00631L_data.csv', 'split_date':'2026-03-23', 'split_ratio':23},
+    '009813': {'name':'009813 街口布局全球',    'csv':'009813_data.csv', 'split_date':None,         'split_ratio':1},
+    '00770':  {'name':'00770 富邦台灣加權',     'csv':'00770_data.csv',  'split_date':None,         'split_ratio':1},
+    '009810': {'name':'009810 街口ESG永續',     'csv':'009810_data.csv', 'split_date':None,         'split_ratio':1},
+    '00988A': {'name':'00988A 野村優息存股A',   'csv':'00988A_data.csv', 'split_date':None,         'split_ratio':1},
 }
 
 GROUPS = {
@@ -396,6 +397,7 @@ const GNAMES     = {gnames_json};
 const ETF_COLORS = {{
   '0050':   '#4f8ef7',
   '0052':   '#22c55e',
+  '00631L': '#ef4444',
   '009813': '#f59e0b',
   '00770':  '#e879f9',
   '009810': '#fb923c',
