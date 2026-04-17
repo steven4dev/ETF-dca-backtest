@@ -652,18 +652,14 @@ function render() {{
   const activeIds = Object.keys(results);
   if (!activeIds.includes(focusETF)) focusETF = activeIds[0] || selectedETFs[0];
 
-  // ── KPI ──────────────────────────────────────────────────────
+  // ── KPI（依報酬率降冪排序）────────────────────────────────────
   const kpiEl = document.getElementById('kpi-grid');
-  let kpis = [];
-  for (const id of activeIds) {{
+  const kpis = activeIds.map(id => {{
     const bg = bestPerETF[id];
     const r  = results[id][bg];
-    kpis.push({{
-      v: FMTP(r.returnPct),
-      l: id + ' 最佳報酬',
-      c: r.returnPct>=0?'pos':'neg',
-    }});
-  }}
+    return {{ v: FMTP(r.returnPct), l: id + ' 最佳報酬',
+              c: r.returnPct>=0?'pos':'neg', sort: r.returnPct }};
+  }}).sort((a, b) => b.sort - a.sort);
   kpiEl.innerHTML = kpis.map(k=>
     `<div class="kpi"><div class="val ${{k.c}}">${{k.v}}</div><div class="lbl">${{k.l}}</div></div>`
   ).join('');
