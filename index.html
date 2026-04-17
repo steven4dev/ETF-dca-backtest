@@ -51,6 +51,13 @@ header p{color:var(--muted);margin-top:.25rem;font-size:.85rem;}
 
 /* 年份按鈕 */
 .year-btns{display:flex;gap:.4rem;}
+.sel-all-btn{
+  background:var(--border);color:var(--muted);border:none;
+  padding:.3rem .7rem;border-radius:6px;cursor:pointer;
+  font-size:.8rem;font-weight:600;transition:all .15s;
+}
+.sel-all-btn.active{background:var(--accent);color:#fff;}
+.sel-all-btn:hover:not(.active){background:#3a3d50;color:var(--text);}
 .year-btn{
   background:var(--border);color:var(--muted);border:none;
   padding:.3rem .7rem;border-radius:6px;cursor:pointer;
@@ -192,7 +199,7 @@ footer{
 <div class="ctrl-bar">
   <div class="ctrl-group">
     <span class="ctrl-label">選擇標的</span>
-    <button class="year-btn" id="btn-select-all">全選</button>
+    <button class="sel-all-btn" id="btn-select-all">全選</button>
     <div class="etf-checks" id="etf-checks"></div>
   </div>
   <div class="sep"></div>
