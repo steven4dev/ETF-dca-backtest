@@ -360,6 +360,7 @@ footer{{
     </div>
     <div class="chart-card full">
       <div class="chart-title">各標的最佳組合 資產成長曲線</div>
+      <div class="tab-row" id="best-curve-tabs"></div>
       <div class="chart-wrap tall"><canvas id="chart-curve-best"></canvas></div>
     </div>
     <div class="chart-card full">
@@ -747,37 +748,72 @@ function render() {{
   chartGroupDist.options.scales.y.ticks.callback = v=>v.toFixed(1)+'%';
   chartGroupDist.update('none');
 
-  // ── 最佳組合成長曲線 ─────────────────────────────────────────
+  // ── 最佳組合成長曲線（可複選）────────────────────────────────
   {{
-    const maxLen = Math.max(...activeIds.map(id=>{{
-      const {{ daily }} = sliceETF(id, Math.min(currentYears, ETF_DB[id].dataYears));
-      return daily.length;
-    }}));
-    // 取最長的 ETF 日期作 x 軸
-    const refId   = activeIds.reduce((a,b)=>{{
+    // 取最長 ETF 作 x 軸基準
+    const refId = activeIds.reduce((a,b) => {{
       const al = sliceETF(a, Math.min(currentYears, ETF_DB[a].dataYears)).daily.length;
       const bl = sliceETF(b, Math.min(currentYears, ETF_DB[b].dataYears)).daily.length;
-      return al>=bl?a:b;
+      return al >= bl ? a : b;
     }});
     const {{ daily:refDaily }} = sliceETF(refId, Math.min(currentYears, ETF_DB[refId].dataYears));
 
-    chartCurveBest.data.labels = refDaily.map(d=>d.d);
+    chartCurveBest.data.labels = refDaily.map(d => d.d);
     chartCurveBest.data.datasets = activeIds.map(id => {{
       const {{ daily }} = sliceETF(id, Math.min(currentYears, ETF_DB[id].dataYears));
-      const bg = bestPerETF[id];
-      // 對齊長度：短的左側補 null
+      const bg  = bestPerETF[id];
       const pad = refDaily.length - daily.length;
-      const padded = [...Array(pad).fill(null), ...results[id][bg].mv];
       return {{
-        label: id + '(' + bg + ')',
-        data: padded,
-        borderColor: ETF_COLORS[id]||'#888',
-        backgroundColor:'transparent',
-        borderWidth:2.2, pointRadius:0, tension:.2,
-        spanGaps:false,
+        label: id + ' (' + bg + ')',
+        data:  [...Array(pad).fill(null), ...results[id][bg].mv],
+        borderColor: ETF_COLORS[id] || '#888',
+        backgroundColor: 'transparent',
+        borderWidth: 2.2, pointRadius: 0, tension: .2,
+        spanGaps: false,
+        hidden: false,
       }};
     }});
     chartCurveBest.update('none');
+
+    // 複選 toggle 按鈕（每次 render 重建）
+    const bestTabRow = document.getElementById('best-curve-tabs');
+    bestTabRow.innerHTML = '';
+
+    // 全選 / 全消
+    const allBtn = document.createElement('button');
+    allBtn.className = 'tab-btn active';
+    allBtn.textContent = '全部';
+    allBtn.onclick = () => {{
+      const anyHidden = chartCurveBest.data.datasets.some(ds => ds.hidden);
+      chartCurveBest.data.datasets.forEach(ds => ds.hidden = !anyHidden);
+      chartCurveBest.update('none');
+      // 同步各 ETF 按鈕狀態
+      bestTabRow.querySelectorAll('.tab-btn[data-etf]').forEach(b => {{
+        b.classList.toggle('active', !anyHidden);
+      }});
+      allBtn.classList.toggle('active', !anyHidden);
+    }};
+    bestTabRow.appendChild(allBtn);
+
+    // 各 ETF 按鈕
+    activeIds.forEach((id, i) => {{
+      const color = ETF_COLORS[id] || '#888';
+      const btn   = document.createElement('button');
+      btn.className   = 'tab-btn active';
+      btn.dataset.etf = id;
+      btn.style.borderLeft = `3px solid ${{color}}`;
+      btn.textContent = id;
+      btn.onclick = () => {{
+        const ds = chartCurveBest.data.datasets[i];
+        ds.hidden = !ds.hidden;
+        btn.classList.toggle('active', !ds.hidden);
+        // 全部顯示時同步全選按鈕
+        const allVisible = chartCurveBest.data.datasets.every(d => !d.hidden);
+        allBtn.classList.toggle('active', allVisible);
+        chartCurveBest.update('none');
+      }};
+      bestTabRow.appendChild(btn);
+    }});
   }}
 
   // ── 單一 ETF 五組曲線 ────────────────────────────────────────
