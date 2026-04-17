@@ -437,7 +437,9 @@ Object.values(ETF_DB)
   const lbl  = document.createElement('label');
   lbl.htmlFor = 'cb-' + etf.id;
   // 顯示 id + 可用年數
-  const yrs  = etf.dataYears < 1 ? `${{(etf.dataYears*12).toFixed(0)}}月` : `${{etf.dataYears.toFixed(1)}}年`;
+  const yrs = etf.dataYears < 1
+    ? `${{(etf.dataYears*12).toFixed(0)}}月`
+    : `${{etf.dataYears.toFixed(1).replace(/\\.0$/, '')}}年`;
   lbl.textContent = `${{etf.id}} (${{yrs}})`;
   lbl.title = etf.name;
 
