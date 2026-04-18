@@ -425,7 +425,7 @@ const FMTP = n => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
 const WFMT = v => Math.abs(v) >= 1e8 ? (v/1e8).toFixed(2)+'億' : (v/1e4).toFixed(1)+'萬';
 
 // ── 狀態 ──────────────────────────────────────────────────────────
-let selectedETFs  = Object.keys(ETF_DB);
+let selectedETFs  = Object.keys(ETF_DB).filter(id => id !== '009810' && id !== '009813');
 let currentYears  = 0.25;
 let currentAmt    = 11000;
 let focusETF      = '0050';   // 五組曲線聚焦標的
