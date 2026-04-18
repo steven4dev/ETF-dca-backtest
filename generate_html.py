@@ -132,6 +132,25 @@ HTML = f"""<!DOCTYPE html>
   --yellow:#f59e0b; --purple:#a78bfa; --orange:#fb923c;
   --text:#e2e8f0; --muted:#94a3b8;
 }}
+body.light{{
+  --bg:#f1f5f9; --card:#ffffff; --border:#cbd5e1;
+  --text:#1e293b; --muted:#64748b;
+}}
+body.light header{{background:linear-gradient(135deg,#1e3a8a 0%,#1e40af 100%);}}
+body.light .year-btn:hover:not(.active),
+body.light .sel-all-btn:hover:not(.active){{background:#e2e8f0;color:var(--text);}}
+body.light .amt-wrap{{background:#f8fafc;}}
+body.light tbody tr:hover{{background:#f1f5f9;}}
+/* Toast */
+#kb-toast{{
+  position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;
+  background:var(--card);color:var(--text);
+  border:1px solid var(--border);border-radius:8px;
+  padding:.45rem 1rem;font-size:.82rem;font-weight:600;
+  pointer-events:none;opacity:0;transition:opacity .25s;
+  box-shadow:0 4px 12px rgba(0,0,0,.3);
+}}
+#kb-toast.show{{opacity:1;}}
 *{{box-sizing:border-box;margin:0;padding:0;}}
 body{{background:var(--bg);color:var(--text);
   font-family:'Segoe UI',system-ui,-apple-system,sans-serif;line-height:1.6;}}
@@ -416,9 +435,11 @@ footer{{
   </div>
 </div>
 
+<div id="kb-toast"></div>
+
 <footer>
   資料來源：Yahoo Finance（各 ETF 已還原股票拆分）&nbsp;|&nbsp;
-  本分析僅供參考，不構成投資建議
+  本分析僅供參考，不構成投資建議 &nbsp;|&nbsp; ⌨️ <kbd>L</kbd> 亮／暗 &nbsp;<kbd>F</kbd> 全螢幕
 </footer>
 
 <script>
@@ -976,6 +997,49 @@ document.querySelectorAll('.section-title[data-sec]').forEach(title => {{
     title.classList.toggle('collapsed', closing);
     body.classList.toggle('collapsed', closing);
   }});
+}});
+
+// ── 鍵盤快捷鍵 ──────────────────────────────────────────────────
+const kbToast = document.getElementById('kb-toast');
+let kbTimer;
+function showToast(msg) {{
+  kbToast.textContent = msg;
+  kbToast.classList.add('show');
+  clearTimeout(kbTimer);
+  kbTimer = setTimeout(() => kbToast.classList.remove('show'), 1600);
+}}
+
+function applyChartTheme(isLight) {{
+  const tc = isLight ? '#475569' : '#94a3b8';
+  const gc = isLight ? '#e2e8f0' : '#2a2d3e';
+  const allCharts = [chartBestReturn, chartBestCagr, chartBestDD,
+                     chartGroupDist, chartCurveBest, chartCurveGroups];
+  allCharts.forEach(ch => {{
+    Object.values(ch.options.scales || {{}}).forEach(sc => {{
+      if (sc.ticks) sc.ticks.color = tc;
+      if (sc.grid)  sc.grid.color  = gc;
+    }});
+    if (ch.options.plugins?.legend?.labels) ch.options.plugins.legend.labels.color = tc;
+    ch.update('none');
+  }});
+}}
+
+document.addEventListener('keydown', e => {{
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'l' || e.key === 'L') {{
+    const isLight = document.body.classList.toggle('light');
+    applyChartTheme(isLight);
+    showToast(isLight ? '☀️ 亮色模式' : '🌙 暗色模式');
+  }}
+  if (e.key === 'f' || e.key === 'F') {{
+    if (!document.fullscreenElement) {{
+      document.documentElement.requestFullscreen().catch(()=>{{}});
+      showToast('⛶ 全螢幕');
+    }} else {{
+      document.exitFullscreen();
+      showToast('✕ 結束全螢幕');
+    }}
+  }}
 }});
 
 // 首次渲染
