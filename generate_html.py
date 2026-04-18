@@ -434,6 +434,11 @@ footer{{
   <div class="sec-body" id="sec-conclusion">
     <div class="conclusion-grid" id="conclusion"></div>
   </div>
+
+  <div class="section-title" data-sec="sec-layout">📊 2026 Q2-Q3 加速佈局配置表（8月完成版）<span class="chev">▼</span></div>
+  <div class="sec-body" id="sec-layout">
+    <div id="layout-table-wrap"></div>
+  </div>
 </div>
 
 <div id="kb-toast"></div>
@@ -991,7 +996,7 @@ document.getElementById('invest-total').addEventListener('input', e => {{
   clearTimeout(debounce);
   debounce = setTimeout(() => {{
     const v = parseInt(e.target.value, 10);
-    if (v >= 1000) {{ currentTotal = v; calcPerTrade(); render(); }}
+    if (v >= 1000) {{ currentTotal = v; calcPerTrade(); renderLayoutTable(); render(); }}
   }}, 300);
 }});
 
@@ -1048,8 +1053,93 @@ document.addEventListener('keydown', e => {{
   }}
 }});
 
+// ── 佈局配置表 ──────────────────────────────────────────────────
+const LAYOUT_PLAN = [
+  {{month:'2026 / 04', label:'佈局啟動期',         ratio:83/500,  peak:false}},
+  {{month:'2026 / 05', label:'五窮（分批加碼）',    ratio:108/500, peak:false}},
+  {{month:'2026 / 06', label:'🔺 六絕（配置高峰）', ratio:133/500, peak:true }},
+  {{month:'2026 / 07', label:'七上吊（持盈保泰）',  ratio:108/500, peak:false}},
+  {{month:'2026 / 08', label:'✅ 提前佈局完成',     ratio:68/500,  peak:true }},
+]];
+const LAYOUT_ETFS = ['00992A','00981A','00988A','0052'];
+
+function renderLayoutTable() {{
+  const total = currentTotal;
+  const wrap  = document.getElementById('layout-table-wrap');
+  if (!wrap) return;
+
+  // 月配置列
+  const rows = LAYOUT_PLAN.map(p => {{
+    const monthly = Math.round(total * p.ratio);
+    const perEtf  = Math.round(monthly / LAYOUT_ETFS.length);
+    const hl = p.peak ? 'background:rgba(79,142,247,.08);' : '';
+    const fw = p.peak ? 'font-weight:700;' : '';
+    return `<tr style="${{hl}}">
+      <td style="text-align:left;${{fw}}">${{p.month}}</td>
+      <td style="text-align:left;color:var(--muted);${{fw}}">${{p.label}}</td>
+      <td style="${{fw}}color:var(--text)">NT$ ${{FMT(monthly)}}</td>
+      ${{LAYOUT_ETFS.map(() => `<td>NT$ ${{FMT(perEtf)}}</td>`).join('')}}
+    </tr>`;
+  }}).join('');
+
+  // 總計列（各 ETF 精確加總）
+  const etfTotals = LAYOUT_ETFS.map(() => {{
+    return LAYOUT_PLAN.reduce((s, p) => {{
+      const monthly = Math.round(total * p.ratio);
+      return s + Math.round(monthly / LAYOUT_ETFS.length);
+    }}, 0);
+  }});
+  const grandTotal = etfTotals.reduce((a,b) => a+b, 0);
+
+  wrap.innerHTML = `
+    <div style="display:flex;flex-wrap:wrap;gap:1.2rem;margin-bottom:.9rem;font-size:.8rem;color:var(--muted)">
+      <span>計畫總額 <strong style="color:var(--text)">NT$ ${{FMT(total)}}</strong></span>
+      <span>執行期間 <strong style="color:var(--text)">2026/04 – 2026/08（5個月）</strong></span>
+      <span>各標的佔比 <strong style="color:var(--text)">各 25%</strong></span>
+    </div>
+    <div class="table-wrap" style="margin-bottom:1rem">
+      <table>
+        <thead><tr>
+          <th style="text-align:left">投入月份</th>
+          <th style="text-align:left">市場動態預期</th>
+          <th>月投入總額</th>
+          ${{LAYOUT_ETFS.map(id => `<th>${{id}}</th>`).join('')}}
+        </tr></thead>
+        <tbody>
+          ${{rows}}
+          <tr style="background:#1e2133">
+            <td style="text-align:left;font-weight:700" colspan="2">總計</td>
+            <td style="font-weight:700;color:var(--accent)">NT$ ${{FMT(grandTotal)}}</td>
+            ${{etfTotals.map(t => `<td style="font-weight:700">NT$ ${{FMT(t)}}</td>`).join('')}}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="conclusion-grid" style="margin-bottom:.8rem">
+      <div class="c-card">
+        <h3>📈 科技成長（25%）</h3>
+        <p><span class="hl">0052 富邦科技</span></p>
+        <p style="margin-top:.35rem">緊跟半導體與台積電長線爆發力，確保多頭行情不踏空。</p>
+      </div>
+      <div class="c-card">
+        <h3>🛡️ 固收防禦（75%）</h3>
+        <p><span class="hl">00992A &nbsp;00981A &nbsp;00988A</span></p>
+        <p style="margin-top:.35rem">股市震盪時降低整體波動率，提供穩定現金流護城河。</p>
+      </div>
+      <div class="c-card">
+        <h3>📐 倒金字塔加碼</h3>
+        <p>順應五窮六絕七上吊淡季規律，在市場最悲觀時集中火力，以 6 月為投入高峰（26.6%），拉高攤平力道。</p>
+      </div>
+      <div class="c-card">
+        <h3>⚠️ 執行提醒</h3>
+        <p>買入前留意債券 ETF <span class="hl">折溢價</span>（溢價 &gt;1% 可暫緩），搭配 KD / RSI 等技術指標尋找月內回檔買點。</p>
+      </div>
+    </div>`;
+}}
+
 // 首次渲染
 calcPerTrade();
+renderLayoutTable();
 render();
 </script>
 </body>
