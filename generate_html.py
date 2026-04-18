@@ -27,7 +27,7 @@ ETF_CONFIG = {
     '009810': {'name':'009810 街口ESG永續',     'csv':'009810_data.csv', 'split_date':None,         'split_ratio':1},
     '00981A': {'name':'00981A 國泰優選收益',    'csv':'00981A_data.csv', 'split_date':None,         'split_ratio':1},
     '00988A': {'name':'00988A 野村優息存股A',   'csv':'00988A_data.csv', 'split_date':None,         'split_ratio':1},
-    '00992A': {'name':'00992A 凱基優選高股息A', 'csv':'00992A_data.csv', 'split_date':None,         'split_ratio':1},
+    '00992A': {'name':'00992A 群益台灣科技創新', 'csv':'00992A_data.csv', 'split_date':None,         'split_ratio':1},
 }
 
 GROUPS = {
