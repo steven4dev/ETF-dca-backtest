@@ -961,13 +961,12 @@ function renderLayoutTable() {
   }
 
   // ── 依各標的最佳報酬率計算配重 ──────────────────────────────
-  // 先取各標的最佳組合報酬率，做平移使最小值 = 1%，再正規化
-  const rets   = ETFS.map(id => lastResults[id][lastBestPerETF[id]].returnPct);
-  const minRet = Math.min.apply(null, rets);
-  const shifted = rets.map(r => Math.max(r - minRet + 1, 0.01));
-  const shiftSum = shifted.reduce((s,v) => s + v, 0);
+  // 直接以報酬率本身為比例，設 floor=1 防止負報酬標的權重歸零
+  const rets    = ETFS.map(id => lastResults[id][lastBestPerETF[id]].returnPct);
+  const floored = rets.map(r => Math.max(r, 1));
+  const floorSum = floored.reduce((s,v) => s + v, 0);
   const weights = {};
-  ETFS.forEach((id, i) => { weights[id] = shifted[i] / shiftSum; });
+  ETFS.forEach((id, i) => { weights[id] = floored[i] / floorSum; });
 
   const total    = currentTotal;
   const ratioSum = PLAN.reduce((s,r) => s + r.ratio, 0);
