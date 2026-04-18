@@ -206,11 +206,11 @@ footer{
   <div class="ctrl-group">
     <span class="ctrl-label">回測期間</span>
     <div class="year-btns" id="year-btns">
-      <button class="year-btn" data-y="0.25">3 月</button>
+      <button class="year-btn active" data-y="0.25">3 月</button>
       <button class="year-btn" data-y="0.5">6 月</button>
       <button class="year-btn" data-y="1">1 年</button>
       <button class="year-btn" data-y="2">2 年</button>
-      <button class="year-btn active" data-y="3">3 年</button>
+      <button class="year-btn" data-y="3">3 年</button>
       <button class="year-btn" data-y="5">5 年</button>
     </div>
   </div>
@@ -219,7 +219,7 @@ footer{
     <span class="ctrl-label">每次投入</span>
     <div class="amt-wrap">
       <span>NT$</span>
-      <input type="number" id="invest-amt" value="10000" min="100" step="1000">
+      <input type="number" id="invest-amt" value="11000" min="100" step="1000">
     </div>
   </div>
 </div>
@@ -305,9 +305,9 @@ const FMTP = n => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
 const WFMT = v => Math.abs(v) >= 1e8 ? (v/1e8).toFixed(2)+'億' : (v/1e4).toFixed(1)+'萬';
 
 // ── 狀態 ──────────────────────────────────────────────────────────
-let selectedETFs  = ['0050', '0052'];
-let currentYears  = 3;
-let currentAmt    = 10000;
+let selectedETFs  = Object.keys(ETF_DB);
+let currentYears  = 0.25;
+let currentAmt    = 11000;
 let focusETF      = '0050';   // 五組曲線聚焦標的
 let focusGroup    = null;     // null = 全部組合
 
