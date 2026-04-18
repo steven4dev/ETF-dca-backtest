@@ -262,6 +262,7 @@ tbody td:first-child,tbody td:nth-child(2){{text-align:left;font-weight:600;}}
   border-radius:4px;margin-left:.25rem;font-weight:600;vertical-align:middle;
 }}
 .tag-best{{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3);}}
+.tag-second{{background:rgba(34,197,94,.07);color:#86efac;border:1px solid rgba(34,197,94,.18);}}
 .tag-safe{{background:rgba(79,142,247,.15);color:var(--accent);border:1px solid rgba(79,142,247,.3);}}
 .tag-worst{{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3);}}
 
@@ -749,18 +750,21 @@ function render() {{
   let rows = [];
   for (const id of activeIds) {{
     const etf    = ETF_DB[id];
-    const bestG  = bestPerETF[id];
-    const worstG = GNAMES.reduce((a,b)=>results[id][a].returnPct<results[id][b].returnPct?a:b);
-    const safeG  = GNAMES.reduce((a,b)=>results[id][a].maxDrawdown>results[id][b].maxDrawdown?a:b);
+    const bestG   = bestPerETF[id];
+    const sortedG = [...GNAMES].sort((a,b)=>results[id][b].returnPct-results[id][a].returnPct);
+    const secondG = sortedG[1];
+    const worstG  = GNAMES.reduce((a,b)=>results[id][a].returnPct<results[id][b].returnPct?a:b);
+    const safeG   = GNAMES.reduce((a,b)=>results[id][a].maxDrawdown>results[id][b].maxDrawdown?a:b);
     const color  = ETF_COLORS[id] || '#888';
 
     GNAMES.forEach(g => {{
       const r   = results[id][g];
-      const isBest  = g===bestG, isWorst = g===worstG, isSafe = g===safeG;
+      const isBest   = g===bestG, isSecond = g===secondG, isWorst = g===worstG, isSafe = g===safeG;
       let tag = '';
-      if(isBest)  tag += '<span class="tag tag-best">最佳</span>';
-      if(isSafe && !isBest) tag += '<span class="tag tag-safe">最穩</span>';
-      if(isWorst && !isBest) tag += '<span class="tag tag-worst">最差</span>';
+      if(isBest)              tag += '<span class="tag tag-best">最佳</span>';
+      if(isSecond && !isBest) tag += '<span class="tag tag-second">次優</span>';
+      if(isSafe && !isBest)   tag += '<span class="tag tag-safe">最穩</span>';
+      if(isWorst && !isBest)  tag += '<span class="tag tag-worst">最差</span>';
       const rc = r.returnPct>=0?'color:var(--green)':'color:var(--red)';
       const cc = r.cagr>=0?'color:var(--green)':'color:var(--red)';
       rows.push(`<tr>
