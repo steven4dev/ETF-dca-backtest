@@ -210,7 +210,21 @@ header p{{color:var(--muted);margin-top:.25rem;font-size:.85rem;}}
   margin-bottom:.9rem;padding-bottom:.45rem;
   border-bottom:1px solid var(--border);
   display:flex;align-items:center;gap:.5rem;
+  cursor:pointer;user-select:none;
 }}
+.section-title:hover{{color:var(--accent);border-color:var(--accent);}}
+.section-title .chev{{
+  margin-left:auto;font-size:.7rem;color:var(--muted);
+  transition:transform .25s;
+}}
+.section-title.collapsed .chev{{transform:rotate(-90deg);}}
+.sec-body{{
+  overflow:hidden;
+  max-height:9999px;
+  transition:max-height .35s ease, opacity .25s;
+  opacity:1;
+}}
+.sec-body.collapsed{{max-height:0 !important;opacity:0;}}
 
 /* ── KPI grid ── */
 .kpi-grid{{
@@ -345,52 +359,60 @@ footer{{
 </div>
 
 <div class="container">
-  <div class="section-title">📊 整體績效 KPI</div>
-  <div class="kpi-grid" id="kpi-grid"></div>
+  <div class="section-title" data-sec="sec-kpi">📊 整體績效 KPI <span class="chev">▼</span></div>
+  <div class="sec-body" id="sec-kpi">
+    <div class="kpi-grid" id="kpi-grid"></div>
+  </div>
 
-  <div class="section-title">🏆 五組扣款日績效對照表</div>
-  <div class="table-wrap"><table>
-    <thead><tr>
-      <th>標的</th><th>組合</th><th>扣款日</th><th>交易次數</th>
-      <th>總投入</th><th>持股數</th><th>平均成本</th>
-      <th>最終市值</th><th>報酬率</th><th>年化報酬</th><th>最大回撤</th>
-    </tr></thead>
-    <tbody id="table-body"></tbody>
-  </table></div>
+  <div class="section-title" data-sec="sec-table">🏆 五組扣款日績效對照表 <span class="chev">▼</span></div>
+  <div class="sec-body" id="sec-table">
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th>標的</th><th>組合</th><th>扣款日</th><th>交易次數</th>
+        <th>總投入</th><th>持股數</th><th>平均成本</th>
+        <th>最終市值</th><th>報酬率</th><th>年化報酬</th><th>最大回撤</th>
+      </tr></thead>
+      <tbody id="table-body"></tbody>
+    </table></div>
+  </div>
 
-  <div class="section-title">📈 視覺化比較</div>
-  <div class="charts-grid">
-    <div class="chart-card">
-      <div class="chart-title">各標的最佳組合 總報酬率</div>
-      <div class="chart-wrap"><canvas id="chart-best-return"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">各標的最佳組合 年化報酬率（CAGR）</div>
-      <div class="chart-wrap"><canvas id="chart-best-cagr"></canvas></div>
-    </div>
-    <div class="chart-card full">
-      <div class="chart-title">各標的最佳組合 資產成長曲線</div>
-      <div class="tab-row" id="best-curve-tabs"></div>
-      <div class="chart-wrap tall"><canvas id="chart-curve-best"></canvas></div>
-    </div>
-    <div class="chart-card full">
-      <div class="chart-title">單一標的 · 五組扣款日曲線比較</div>
-      <div class="tab-row" id="etf-curve-tabs"></div>
-      <div class="tab-row" id="group-curve-tabs"></div>
-      <div class="chart-wrap tall"><canvas id="chart-curve-groups"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">各標的最佳組合 最大回撤</div>
-      <div class="chart-wrap"><canvas id="chart-best-dd"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">各標的 五組扣款日報酬率分布</div>
-      <div class="chart-wrap"><canvas id="chart-group-dist"></canvas></div>
+  <div class="section-title" data-sec="sec-charts">📈 視覺化比較 <span class="chev">▼</span></div>
+  <div class="sec-body" id="sec-charts">
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">各標的最佳組合 總報酬率</div>
+        <div class="chart-wrap"><canvas id="chart-best-return"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">各標的最佳組合 年化報酬率（CAGR）</div>
+        <div class="chart-wrap"><canvas id="chart-best-cagr"></canvas></div>
+      </div>
+      <div class="chart-card full">
+        <div class="chart-title">各標的最佳組合 資產成長曲線</div>
+        <div class="tab-row" id="best-curve-tabs"></div>
+        <div class="chart-wrap tall"><canvas id="chart-curve-best"></canvas></div>
+      </div>
+      <div class="chart-card full">
+        <div class="chart-title">單一標的 · 五組扣款日曲線比較</div>
+        <div class="tab-row" id="etf-curve-tabs"></div>
+        <div class="tab-row" id="group-curve-tabs"></div>
+        <div class="chart-wrap tall"><canvas id="chart-curve-groups"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">各標的最佳組合 最大回撤</div>
+        <div class="chart-wrap"><canvas id="chart-best-dd"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">各標的 五組扣款日報酬率分布</div>
+        <div class="chart-wrap"><canvas id="chart-group-dist"></canvas></div>
+      </div>
     </div>
   </div>
 
-  <div class="section-title">💡 結論分析</div>
-  <div class="conclusion-grid" id="conclusion"></div>
+  <div class="section-title" data-sec="sec-conclusion">💡 結論分析 <span class="chev">▼</span></div>
+  <div class="sec-body" id="sec-conclusion">
+    <div class="conclusion-grid" id="conclusion"></div>
+  </div>
 </div>
 
 <footer>
@@ -940,6 +962,16 @@ document.getElementById('invest-amt').addEventListener('input', e => {{
     const v = parseInt(e.target.value, 10);
     if (v >= 100) {{ currentAmt = v; render(); }}
   }}, 300);
+}});
+
+// ── 收摺區塊 ────────────────────────────────────────────────────
+document.querySelectorAll('.section-title[data-sec]').forEach(title => {{
+  title.addEventListener('click', () => {{
+    const body = document.getElementById(title.dataset.sec);
+    const closing = !title.classList.contains('collapsed');
+    title.classList.toggle('collapsed', closing);
+    body.classList.toggle('collapsed', closing);
+  }});
 }});
 
 // 首次渲染
