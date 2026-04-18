@@ -561,7 +561,7 @@ function runDCA(schedule, daily, finalPrice, amtPerTrade, actualYears) {{
   for (let i=0; i<mv.length; i++) {{
     const ret = cc[i] > 0 ? (mv[i] - cc[i]) / cc[i] * 100 : 0;
     if (ret > peakRet) peakRet = ret;
-    const dd = peakRet > -100 ? (ret - peakRet) / (1 + peakRet/100) * 100 : 0;
+    const dd = peakRet > -100 ? (ret - peakRet) / (1 + peakRet/100) : 0;
     if (dd < maxDD) maxDD = dd;
   }}
   const trades = schedule.reduce((s,t)=>s+t.n, 0);
