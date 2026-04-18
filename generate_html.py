@@ -262,7 +262,7 @@ tbody td:first-child,tbody td:nth-child(2){{text-align:left;font-weight:600;}}
   border-radius:4px;margin-left:.25rem;font-weight:600;vertical-align:middle;
 }}
 .tag-best{{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3);}}
-.tag-second{{background:rgba(34,197,94,.07);color:#86efac;border:1px solid rgba(34,197,94,.18);}}
+.tag-second{{background:rgba(234,179,8,.15);color:#fde047;border:1px solid rgba(234,179,8,.3);}}
 .tag-safe{{background:rgba(79,142,247,.15);color:var(--accent);border:1px solid rgba(79,142,247,.3);}}
 .tag-worst{{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3);}}
 
