@@ -436,11 +436,13 @@ function runDCA(schedule, daily, finalPrice, amtPerTrade, actualYears) {
   const returnPct  = (finalValue - totalCost) / totalCost * 100;
   const cagr       = actualYears > 0.1
     ? (Math.pow(finalValue/totalCost, 1/actualYears)-1)*100 : 0;
-  let peak=-Infinity, maxDD=0;
-  for (const v of mv) {
-    if (v>peak) peak=v;
-    const dd=(v-peak)/peak*100;
-    if (dd<maxDD) maxDD=dd;
+  // 最大回撤：基於「累積報酬率」的回撤，避免 DCA 注資掩蓋真實跌幅
+  let peakRet=-Infinity, maxDD=0;
+  for (let i=0; i<mv.length; i++) {
+    const ret = cc[i] > 0 ? (mv[i] - cc[i]) / cc[i] * 100 : 0;
+    if (ret > peakRet) peakRet = ret;
+    const dd = peakRet > -100 ? (ret - peakRet) / (1 + peakRet/100) * 100 : 0;
+    if (dd < maxDD) maxDD = dd;
   }
   const trades = schedule.reduce((s,t)=>s+t.n, 0);
   const avgCost = cumShares > 0 ? totalCost/cumShares : 0;
@@ -765,6 +767,7 @@ function render() {
          <ul style="margin-top:.5rem">
            <li>總報酬：<span class="${bestR.returnPct>=0?'gr':'rd'} hl">${FMTP(bestR.returnPct)}</span></li>
            <li>年化報酬：<span class="${bestR.cagr>=0?'gr':'rd'} hl">${FMTP(bestR.cagr)}</span></li>
+           <li>總投入：NT$ ${FMT(bestR.totalCost)}</li>
            <li>最終市值：NT$ ${FMT(bestR.finalValue)}</li>
          </ul>`
     },
