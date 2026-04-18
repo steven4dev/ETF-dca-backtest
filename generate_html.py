@@ -25,7 +25,9 @@ ETF_CONFIG = {
     '009813': {'name':'009813 街口布局全球',    'csv':'009813_data.csv', 'split_date':None,         'split_ratio':1},
     '00770':  {'name':'00770 富邦台灣加權',     'csv':'00770_data.csv',  'split_date':None,         'split_ratio':1},
     '009810': {'name':'009810 街口ESG永續',     'csv':'009810_data.csv', 'split_date':None,         'split_ratio':1},
+    '00981A': {'name':'00981A 國泰優選收益',    'csv':'00981A_data.csv', 'split_date':None,         'split_ratio':1},
     '00988A': {'name':'00988A 野村優息存股A',   'csv':'00988A_data.csv', 'split_date':None,         'split_ratio':1},
+    '00992A': {'name':'00992A 凱基優選高股息A', 'csv':'00992A_data.csv', 'split_date':None,         'split_ratio':1},
 }
 
 GROUPS = {
@@ -412,7 +414,9 @@ const ETF_COLORS = {{
   '009813': '#f59e0b',
   '00770':  '#e879f9',
   '009810': '#fb923c',
+  '00981A': '#a78bfa',
   '00988A': '#38bdf8',
+  '00992A': '#34d399',
 }};
 const GROUP_COLORS = ['#4f8ef7','#22c55e','#f59e0b','#e879f9','#fb923c'];
 
@@ -594,7 +598,10 @@ function makeLine(id, datasets) {{
       interaction:{{mode:'index',intersect:false}},
       plugins:{{
         legend:{{labels:{{color:'#94a3b8',boxWidth:10,font:{{size:11}}}}}},
-        tooltip:{{callbacks:{{label:c=>` ${{c.dataset.label}}: ${{WFMT(c.raw)}}`}}}},
+        tooltip:{{
+          itemSort: (a, b) => (b.raw ?? -Infinity) - (a.raw ?? -Infinity),
+          callbacks:{{label:c=>` ${{c.dataset.label}}: ${{WFMT(c.raw)}}`}},
+        }},
       }},
       scales:{{
         x:{{ticks:{{color:'#64748b',maxTicksLimit:10}},grid:{{color:'#1e2133'}}}},
