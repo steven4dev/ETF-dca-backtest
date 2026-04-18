@@ -434,6 +434,11 @@ footer{{
   <div class="sec-body" id="sec-conclusion">
     <div class="conclusion-grid" id="conclusion"></div>
   </div>
+
+  <div class="section-title" data-sec="sec-layout">📊 2026 Q2-Q3 加速佈局配置表（8月完成版）<span class="chev">▼</span></div>
+  <div class="sec-body" id="sec-layout">
+    <div id="layout-wrap"></div>
+  </div>
 </div>
 
 <div id="kb-toast"></div>
@@ -991,7 +996,7 @@ document.getElementById('invest-total').addEventListener('input', e => {{
   clearTimeout(debounce);
   debounce = setTimeout(() => {{
     const v = parseInt(e.target.value, 10);
-    if (v >= 1000) {{ currentTotal = v; calcPerTrade(); render(); }}
+    if (v >= 1000) {{ currentTotal = v; calcPerTrade(); render(); renderLayoutTable(); }}
   }}, 300);
 }});
 
@@ -1048,9 +1053,75 @@ document.addEventListener('keydown', e => {{
   }}
 }});
 
+// ════════════════════════════════════════════════════════════════
+//  佈局配置表
+// ════════════════════════════════════════════════════════════════
+function renderLayoutTable() {{
+  const PLAN = [
+    {{month:'2026/04', ratio:83,  label:'佈局啟動期'}},
+    {{month:'2026/05', ratio:108, label:'五窮（分批加碼）'}},
+    {{month:'2026/06', ratio:133, label:'六絕（配置最高峰）'}},
+    {{month:'2026/07', ratio:108, label:'七上吊（持盈保泰）'}},
+    {{month:'2026/08', ratio:68,  label:'提前佈局完成'}},
+  ];
+  const ETFS = ['00992A','00981A','00988A','0052'];
+  const total = currentTotal;
+  const ratioSum = PLAN.reduce((s,r) => s + r.ratio, 0);
+  const peakRatio = Math.max.apply(null, PLAN.map(r => r.ratio));
+
+  const TH = 'padding:.45rem .75rem;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap;color:var(--muted)';
+  let html = '<div style="overflow-x:auto;margin-bottom:1.4rem">';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:.8rem">';
+  html += '<thead><tr style="background:#232636">';
+  html += '<th style="' + TH + ';text-align:left">月份</th>';
+  html += '<th style="' + TH + ';text-align:left">市場邏輯</th>';
+  html += '<th style="' + TH + ';text-align:right">投入占比</th>';
+  html += '<th style="' + TH + ';text-align:right">月投入總額</th>';
+  for (const etf of ETFS) {{
+    html += '<th style="' + TH + ';text-align:right">' + etf + '</th>';
+  }}
+  html += '</tr></thead><tbody>';
+
+  let grandTotal = 0;
+  const etfTotals = {{}};
+  for (const etf of ETFS) {{ etfTotals[etf] = 0; }}
+
+  for (const row of PLAN) {{
+    const monthly = Math.round(total * row.ratio / ratioSum);
+    const perETF  = Math.round(monthly / ETFS.length);
+    const pct     = (row.ratio / ratioSum * 100).toFixed(1);
+    grandTotal += monthly;
+    for (const etf of ETFS) {{ etfTotals[etf] += perETF; }}
+    const rowBg = row.ratio === peakRatio ? 'background:rgba(79,142,247,.08);' : '';
+    html += '<tr style="border-bottom:1px solid var(--border);' + rowBg + '">';
+    html += '<td style="padding:.45rem .75rem;font-weight:600;white-space:nowrap">' + row.month + '</td>';
+    html += '<td style="padding:.45rem .75rem;color:var(--muted)">' + row.label + '</td>';
+    html += '<td style="padding:.45rem .75rem;text-align:right;color:var(--accent)">' + pct + '%</td>';
+    html += '<td style="padding:.45rem .75rem;text-align:right;font-weight:700">NT$ ' + monthly.toLocaleString('zh-TW') + '</td>';
+    for (const etf of ETFS) {{
+      html += '<td style="padding:.45rem .75rem;text-align:right">NT$ ' + perETF.toLocaleString('zh-TW') + '</td>';
+    }}
+    html += '</tr>';
+  }}
+
+  html += '<tr style="background:#232636;font-weight:700;border-top:2px solid var(--border)">';
+  html += '<td style="padding:.45rem .75rem">合計</td>';
+  html += '<td style="padding:.45rem .75rem;color:var(--muted)">5個月完成佈局</td>';
+  html += '<td style="padding:.45rem .75rem;text-align:right;color:var(--accent)">100%</td>';
+  html += '<td style="padding:.45rem .75rem;text-align:right;color:var(--green)">NT$ ' + grandTotal.toLocaleString('zh-TW') + '</td>';
+  for (const etf of ETFS) {{
+    html += '<td style="padding:.45rem .75rem;text-align:right;color:var(--green)">NT$ ' + etfTotals[etf].toLocaleString('zh-TW') + '</td>';
+  }}
+  html += '</tr></tbody></table></div>';
+  html += '<p style="font-size:.76rem;color:var(--muted);margin-bottom:1rem">＊ 倒金字塔配置比例（83/108/133/108/68）；各標的均分每月投入額。實際投入以「總投入資金」設定為基準。</p>';
+
+  document.getElementById('layout-wrap').innerHTML = html;
+}}
+
 // 首次渲染
 calcPerTrade();
 render();
+renderLayoutTable();
 </script>
 </body>
 </html>"""
