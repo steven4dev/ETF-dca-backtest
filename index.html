@@ -768,6 +768,7 @@ function render() {
            <li>總報酬：<span class="${bestR.returnPct>=0?'gr':'rd'} hl">${FMTP(bestR.returnPct)}</span></li>
            <li>年化報酬：<span class="${bestR.cagr>=0?'gr':'rd'} hl">${FMTP(bestR.cagr)}</span></li>
            <li>總投入：NT$ ${FMT(bestR.totalCost)}</li>
+           <li>總獲益：NT$ ${FMT(bestR.finalValue - bestR.totalCost)}</li>
            <li>最終市值：NT$ ${FMT(bestR.finalValue)}</li>
          </ul>`
     },
