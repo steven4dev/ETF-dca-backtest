@@ -370,11 +370,12 @@ footer{{
   </div>
   <div class="sep"></div>
   <div class="ctrl-group">
-    <span class="ctrl-label">每次投入</span>
+    <span class="ctrl-label">總投入資金</span>
     <div class="amt-wrap">
       <span>NT$</span>
-      <input type="number" id="invest-amt" value="11000" min="100" step="1000">
+      <input type="number" id="invest-total" value="180000" min="1000" step="10000">
     </div>
+    <span class="ctrl-label">≈ 每次投入 <span id="per-trade-lbl" style="color:var(--text);font-weight:700">NT$ 10,000</span></span>
   </div>
 </div>
 
@@ -467,7 +468,15 @@ const WFMT = v => Math.abs(v) >= 1e8 ? (v/1e8).toFixed(2)+'億' : (v/1e4).toFixe
 // ── 狀態 ──────────────────────────────────────────────────────────
 let selectedETFs  = ['00992A','00981A','00988A','0052'];
 let currentYears  = 0.25;
-let currentAmt    = 11000;
+let currentTotal  = 180000;
+let currentAmt    = 10000; // 由 calcPerTrade() 動態計算
+
+function calcPerTrade() {{
+  const months = Math.max(1, Math.round(currentYears * 12));
+  currentAmt = Math.round(currentTotal / (months * 6));
+  const lbl = document.getElementById('per-trade-lbl');
+  if (lbl) lbl.textContent = 'NT$ ' + currentAmt.toLocaleString('zh-TW');
+}}
 let focusETF      = '0050';   // 五組曲線聚焦標的
 let focusGroup    = null;     // null = 全部組合
 
@@ -972,16 +981,17 @@ document.querySelectorAll('.year-btn').forEach(btn => {{
     document.querySelectorAll('.year-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     currentYears = parseFloat(btn.dataset.y);
+    calcPerTrade();
     render();
   }});
 }});
 
 let debounce;
-document.getElementById('invest-amt').addEventListener('input', e => {{
+document.getElementById('invest-total').addEventListener('input', e => {{
   clearTimeout(debounce);
   debounce = setTimeout(() => {{
     const v = parseInt(e.target.value, 10);
-    if (v >= 100) {{ currentAmt = v; render(); }}
+    if (v >= 1000) {{ currentTotal = v; calcPerTrade(); render(); }}
   }}, 300);
 }});
 
@@ -1039,6 +1049,7 @@ document.addEventListener('keydown', e => {{
 }});
 
 // 首次渲染
+calcPerTrade();
 render();
 </script>
 </body>
