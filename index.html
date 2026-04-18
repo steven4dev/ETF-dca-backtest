@@ -1021,10 +1021,14 @@ function renderLayoutTable() {
     html += '<td style="padding:.45rem .75rem;text-align:right;color:var(--accent)">' + pct + '%</td>';
     html += '<td style="padding:.45rem .75rem;text-align:right;font-weight:700">NT$ ' + monthly.toLocaleString('zh-TW') + '</td>';
     for (const etf of ETFS) {
-      const amt = Math.round(monthly * weights[etf]);
+      const amt      = Math.round(monthly * weights[etf]);
+      const perTrade = Math.round(amt / 6);
       etfTotals[etf] += amt;
       const col = ETF_COLORS[etf] || '#888';
-      html += '<td style="padding:.45rem .75rem;text-align:right;border-left:2px solid ' + col + '22">NT$ ' + amt.toLocaleString('zh-TW') + '</td>';
+      html += '<td style="padding:.45rem .75rem;text-align:right;border-left:2px solid ' + col + '22">';
+      html += '<span style="font-weight:700">NT$ ' + amt.toLocaleString('zh-TW') + '</span>';
+      html += '<br><span style="font-size:.68rem;color:var(--muted)">6筆 × NT$ ' + perTrade.toLocaleString('zh-TW') + '</span>';
+      html += '</td>';
     }
     html += '</tr>';
   }
