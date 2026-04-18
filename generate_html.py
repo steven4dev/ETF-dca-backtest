@@ -437,10 +437,6 @@ footer{{
 
 <div id="kb-toast"></div>
 
-<footer>
-  資料來源：Yahoo Finance（各 ETF 已還原股票拆分）&nbsp;|&nbsp;
-  本分析僅供參考，不構成投資建議 &nbsp;|&nbsp; ⌨️ <kbd>L</kbd> 亮／暗 &nbsp;<kbd>F</kbd> 全螢幕
-</footer>
 
 <script>
 // ════════════════════════════════════════════════════════════════
