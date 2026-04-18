@@ -253,7 +253,7 @@ footer{
     <span class="ctrl-label">總投入資金</span>
     <div class="amt-wrap">
       <span>NT$</span>
-      <input type="number" id="invest-total" value="180000" min="1000" step="10000">
+      <input type="number" id="invest-total" value="2000000" min="1000" step="10000">
     </div>
     <span class="ctrl-label">≈ 每次投入 <span id="per-trade-lbl" style="color:var(--text);font-weight:700">NT$ 10,000</span></span>
   </div>
@@ -353,8 +353,10 @@ const WFMT = v => Math.abs(v) >= 1e8 ? (v/1e8).toFixed(2)+'億' : (v/1e4).toFixe
 // ── 狀態 ──────────────────────────────────────────────────────────
 let selectedETFs  = ['00992A','00981A','00988A','0052'];
 let currentYears  = 0.25;
-let currentTotal  = 180000;
+let currentTotal  = 2000000;
 let currentAmt    = 10000; // 由 calcPerTrade() 動態計算
+let lastResults   = {};   // render() 後供 renderLayoutTable() 使用
+let lastBestPerETF = {};
 
 function calcPerTrade() {
   const months = Math.max(1, Math.round(currentYears * 12));
@@ -856,6 +858,11 @@ function render() {
          </ul>`
     },
   ].map(c=>`<div class="c-card"><h3>${c.t}</h3>${c.h}</div>`).join('');
+
+  // 儲存結果供佈局配置表使用，並重繪
+  lastResults    = results;
+  lastBestPerETF = bestPerETF;
+  renderLayoutTable();
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -876,7 +883,7 @@ document.getElementById('invest-total').addEventListener('input', e => {
   clearTimeout(debounce);
   debounce = setTimeout(() => {
     const v = parseInt(e.target.value, 10);
-    if (v >= 1000) { currentTotal = v; calcPerTrade(); render(); renderLayoutTable(); }
+    if (v >= 1000) { currentTotal = v; calcPerTrade(); render(); }
   }, 300);
 });
 
@@ -934,7 +941,7 @@ document.addEventListener('keydown', e => {
 });
 
 // ════════════════════════════════════════════════════════════════
-//  佈局配置表
+//  佈局配置表（依績效比例配權重）
 // ════════════════════════════════════════════════════════════════
 function renderLayoutTable() {
   const PLAN = [
@@ -944,64 +951,108 @@ function renderLayoutTable() {
     {month:'2026/07', ratio:108, label:'七上吊（持盈保泰）'},
     {month:'2026/08', ratio:68,  label:'提前佈局完成'},
   ];
-  const ETFS = ['00992A','00981A','00988A','0052'];
-  const total = currentTotal;
+
+  // 取有效結果的標的（依 selectedETFs 順序）
+  const ETFS = selectedETFs.filter(id => lastResults[id] && lastBestPerETF[id]);
+  if (ETFS.length === 0) {
+    document.getElementById('layout-wrap').innerHTML =
+      '<p style="color:var(--muted);font-size:.82rem;padding:.5rem 0">請至少選擇一個有效標的</p>';
+    return;
+  }
+
+  // ── 依各標的最佳報酬率計算配重 ──────────────────────────────
+  // 先取各標的最佳組合報酬率，做平移使最小值 = 1%，再正規化
+  const rets   = ETFS.map(id => lastResults[id][lastBestPerETF[id]].returnPct);
+  const minRet = Math.min.apply(null, rets);
+  const shifted = rets.map(r => Math.max(r - minRet + 1, 0.01));
+  const shiftSum = shifted.reduce((s,v) => s + v, 0);
+  const weights = {};
+  ETFS.forEach((id, i) => { weights[id] = shifted[i] / shiftSum; });
+
+  const total    = currentTotal;
   const ratioSum = PLAN.reduce((s,r) => s + r.ratio, 0);
   const peakRatio = Math.max.apply(null, PLAN.map(r => r.ratio));
 
   const TH = 'padding:.45rem .75rem;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap;color:var(--muted)';
+
+  // ── 表頭 ────────────────────────────────────────────────────
   let html = '<div style="overflow-x:auto;margin-bottom:1.4rem">';
   html += '<table style="width:100%;border-collapse:collapse;font-size:.8rem">';
-  html += '<thead><tr style="background:#232636">';
+  html += '<thead>';
+
+  // 第一行：欄位名稱
+  html += '<tr style="background:#232636">';
   html += '<th style="' + TH + ';text-align:left">月份</th>';
   html += '<th style="' + TH + ';text-align:left">市場邏輯</th>';
   html += '<th style="' + TH + ';text-align:right">投入占比</th>';
   html += '<th style="' + TH + ';text-align:right">月投入總額</th>';
   for (const etf of ETFS) {
-    html += '<th style="' + TH + ';text-align:right">' + etf + '</th>';
+    const col = ETF_COLORS[etf] || '#888';
+    html += '<th style="' + TH + ';text-align:right;border-left:2px solid ' + col + '44">' + etf + '</th>';
   }
-  html += '</tr></thead><tbody>';
+  html += '</tr>';
 
+  // 第二行：績效配重
+  html += '<tr style="background:#1a1d27">';
+  html += '<td style="padding:.2rem .75rem;font-size:.7rem;color:var(--muted)" colspan="4">績效配重</td>';
+  for (const etf of ETFS) {
+    const col  = ETF_COLORS[etf] || '#888';
+    const wPct = (weights[etf] * 100).toFixed(1);
+    const ret  = lastResults[etf][lastBestPerETF[etf]].returnPct;
+    const retStr = (ret >= 0 ? '+' : '') + ret.toFixed(2) + '%';
+    html += '<td style="padding:.2rem .75rem;text-align:right;font-size:.7rem;color:' + col + ';border-left:2px solid ' + col + '44">';
+    html += wPct + '% <span style="color:var(--muted)">(' + retStr + ')</span></td>';
+  }
+  html += '</tr>';
+  html += '</thead><tbody>';
+
+  // ── 資料列 ──────────────────────────────────────────────────
   let grandTotal = 0;
   const etfTotals = {};
   for (const etf of ETFS) { etfTotals[etf] = 0; }
 
   for (const row of PLAN) {
     const monthly = Math.round(total * row.ratio / ratioSum);
-    const perETF  = Math.round(monthly / ETFS.length);
     const pct     = (row.ratio / ratioSum * 100).toFixed(1);
-    grandTotal += monthly;
-    for (const etf of ETFS) { etfTotals[etf] += perETF; }
-    const rowBg = row.ratio === peakRatio ? 'background:rgba(79,142,247,.08);' : '';
+    grandTotal   += monthly;
+    const rowBg   = row.ratio === peakRatio ? 'background:rgba(79,142,247,.08);' : '';
     html += '<tr style="border-bottom:1px solid var(--border);' + rowBg + '">';
     html += '<td style="padding:.45rem .75rem;font-weight:600;white-space:nowrap">' + row.month + '</td>';
     html += '<td style="padding:.45rem .75rem;color:var(--muted)">' + row.label + '</td>';
     html += '<td style="padding:.45rem .75rem;text-align:right;color:var(--accent)">' + pct + '%</td>';
     html += '<td style="padding:.45rem .75rem;text-align:right;font-weight:700">NT$ ' + monthly.toLocaleString('zh-TW') + '</td>';
     for (const etf of ETFS) {
-      html += '<td style="padding:.45rem .75rem;text-align:right">NT$ ' + perETF.toLocaleString('zh-TW') + '</td>';
+      const amt = Math.round(monthly * weights[etf]);
+      etfTotals[etf] += amt;
+      const col = ETF_COLORS[etf] || '#888';
+      html += '<td style="padding:.45rem .75rem;text-align:right;border-left:2px solid ' + col + '22">NT$ ' + amt.toLocaleString('zh-TW') + '</td>';
     }
     html += '</tr>';
   }
 
+  // ── 合計列 ──────────────────────────────────────────────────
   html += '<tr style="background:#232636;font-weight:700;border-top:2px solid var(--border)">';
   html += '<td style="padding:.45rem .75rem">合計</td>';
   html += '<td style="padding:.45rem .75rem;color:var(--muted)">5個月完成佈局</td>';
   html += '<td style="padding:.45rem .75rem;text-align:right;color:var(--accent)">100%</td>';
   html += '<td style="padding:.45rem .75rem;text-align:right;color:var(--green)">NT$ ' + grandTotal.toLocaleString('zh-TW') + '</td>';
   for (const etf of ETFS) {
-    html += '<td style="padding:.45rem .75rem;text-align:right;color:var(--green)">NT$ ' + etfTotals[etf].toLocaleString('zh-TW') + '</td>';
+    const col = ETF_COLORS[etf] || '#888';
+    html += '<td style="padding:.45rem .75rem;text-align:right;color:var(--green);border-left:2px solid ' + col + '44">NT$ ' + etfTotals[etf].toLocaleString('zh-TW') + '</td>';
   }
   html += '</tr></tbody></table></div>';
-  html += '<p style="font-size:.76rem;color:var(--muted);margin-bottom:1rem">＊ 倒金字塔配置比例（83/108/133/108/68）；各標的均分每月投入額。實際投入以「總投入資金」設定為基準。</p>';
+
+  // ── 說明 ─────────────────────────────────────────────────────
+  const wDesc = ETFS.map(id => id + ' ' + (weights[id]*100).toFixed(1) + '%').join('、');
+  html += '<p style="font-size:.76rem;color:var(--muted);margin-bottom:1rem">';
+  html += '＊ 倒金字塔配置比例（83/108/133/108/68）；各標的依回測最佳報酬率加權分配：' + wDesc + '。總計 = 總投入資金。</p>';
 
   document.getElementById('layout-wrap').innerHTML = html;
 }
 
 // 首次渲染
 calcPerTrade();
-render();
-renderLayoutTable();
+render(); // render() 末尾會呼叫 renderLayoutTable()
 </script>
 </body>
 </html>
