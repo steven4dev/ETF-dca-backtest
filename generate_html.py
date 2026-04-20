@@ -18,16 +18,17 @@ class NpEncoder(json.JSONEncoder):
         return super().default(obj)
 
 # ── ETF 設定表 ────────────────────────────────────────────────────
+# split_date / split_ratio 已移除：由 load_etf() 自動偵測並補正
 ETF_CONFIG = {
-    '0050':   {'name':'0050 元大台灣50',       'csv':'0050_data.csv',   'split_date':None,         'split_ratio':1},
-    '0052':   {'name':'0052 富邦科技',          'csv':'0052_data.csv',   'split_date':'2025-11-17', 'split_ratio':7},
-    '00631L': {'name':'00631L 元大台灣50正2',   'csv':'00631L_data.csv', 'split_date':'2026-03-23', 'split_ratio':23},
-    '009813': {'name':'009813 街口布局全球',    'csv':'009813_data.csv', 'split_date':None,         'split_ratio':1},
-    '00770':  {'name':'00770 富邦台灣加權',     'csv':'00770_data.csv',  'split_date':None,         'split_ratio':1},
-    '009810': {'name':'009810 街口ESG永續',     'csv':'009810_data.csv', 'split_date':None,         'split_ratio':1},
-    '00981A': {'name':'00981A 國泰優選收益',    'csv':'00981A_data.csv', 'split_date':None,         'split_ratio':1},
-    '00988A': {'name':'00988A 野村優息存股A',   'csv':'00988A_data.csv', 'split_date':None,         'split_ratio':1},
-    '00992A': {'name':'00992A 群益台灣科技創新', 'csv':'00992A_data.csv', 'split_date':None,         'split_ratio':1},
+    '0050':   {'name':'0050 元大台灣50',        'csv':'0050_data.csv'},
+    '0052':   {'name':'0052 富邦科技',           'csv':'0052_data.csv'},
+    '00631L': {'name':'00631L 元大台灣50正2',    'csv':'00631L_data.csv'},
+    '009813': {'name':'009813 街口布局全球',     'csv':'009813_data.csv'},
+    '00770':  {'name':'00770 富邦台灣加權',      'csv':'00770_data.csv'},
+    '009810': {'name':'009810 街口ESG永續',      'csv':'009810_data.csv'},
+    '00981A': {'name':'00981A 國泰優選收益',     'csv':'00981A_data.csv'},
+    '00988A': {'name':'00988A 野村優息存股A',    'csv':'00988A_data.csv'},
+    '00992A': {'name':'00992A 群益台灣科技創新', 'csv':'00992A_data.csv'},
 }
 
 GROUPS = {
@@ -46,23 +47,41 @@ DAYS_LABEL = {
 }
 
 # ── 各 ETF 資料處理 ───────────────────────────────────────────────
+def auto_fix_splits(prices: np.ndarray) -> np.ndarray:
+    """
+    自動偵測股票分割並向前修正，使價格序列連續。
+    偵測條件：單日跌幅 >40%，且跌幅接近 1/N（N≥2 整數，誤差<12%）。
+    每次偵測到分割後重新掃描（支援多次分割）。
+    """
+    p = prices.copy().astype(float)
+    changed = True
+    while changed:
+        changed = False
+        for i in range(len(p) - 1):
+            if p[i] <= 0:
+                continue
+            ratio = p[i + 1] / p[i]
+            if ratio >= 0.6:
+                continue
+            n = round(1.0 / ratio)
+            if n >= 2 and abs(ratio - 1.0 / n) / (1.0 / n) < 0.12:
+                p[:i + 1] /= n   # 分割日前全部除以 N
+                changed = True
+                break             # 重新掃描
+    return p
+
+
 def load_etf(cfg):
     df = pd.read_csv(cfg['csv'])
     df['Date'] = pd.to_datetime(df['Date'])
 
-    # 優先使用調整後收盤價（已含配息還原）
-    # 注意：Yahoo Finance 的 Adj Close 只調整配息，股票分割仍需手動補正
-    if 'Adj Close' in df.columns:
-        df['Close'] = pd.to_numeric(df['Adj Close'], errors='coerce')
-    else:
-        df['Close'] = pd.to_numeric(df['Close'], errors='coerce')
-
+    # 優先使用 Adj Close（含配息還原），否則用 Close
+    col = 'Adj Close' if 'Adj Close' in df.columns else 'Close'
+    df['Close'] = pd.to_numeric(df[col], errors='coerce')
     df = df.dropna(subset=['Close']).sort_values('Date').reset_index(drop=True)
 
-    # 股票分割補正（無論使用 Close 或 Adj Close 皆需執行）
-    if cfg['split_date']:
-        sd = pd.Timestamp(cfg['split_date'])
-        df.loc[df['Date'] < sd, 'Close'] /= cfg['split_ratio']
+    # 自動偵測並補正股票分割（Yahoo Finance Adj Close 僅含配息，分割不連續需補正）
+    df['Close'] = auto_fix_splits(df['Close'].values)
 
     return df
 
@@ -114,8 +133,6 @@ for etf_id, cfg in ETF_CONFIG.items():
         'dataYears':  data_years,
         'startDate':  df['Date'].min().strftime('%Y-%m-%d'),
         'endDate':    df['Date'].max().strftime('%Y-%m-%d'),
-        'splitDate':  cfg['split_date'],
-        'splitRatio': cfg['split_ratio'],
     }
     print(f'{len(daily)} 筆  {daily[0]["d"]}~{daily[-1]["d"]}  {data_years:.1f}年')
 
