@@ -48,11 +48,21 @@ DAYS_LABEL = {
 # ── 各 ETF 資料處理 ───────────────────────────────────────────────
 def load_etf(cfg):
     df = pd.read_csv(cfg['csv'])
-    df['Date']  = pd.to_datetime(df['Date'])
-    df['Close'] = pd.to_numeric(df['Close'], errors='coerce')
+    df['Date'] = pd.to_datetime(df['Date'])
+
+    # 優先使用調整後收盤價（已含配息與分割還原）
+    if 'Adj Close' in df.columns:
+        df['Close'] = pd.to_numeric(df['Adj Close'], errors='coerce')
+        adj_used = True
+    else:
+        # 舊版 CSV 無 Adj Close → fallback 並手動補正分割
+        df['Close'] = pd.to_numeric(df['Close'], errors='coerce')
+        adj_used = False
+
     df = df.dropna(subset=['Close']).sort_values('Date').reset_index(drop=True)
 
-    if cfg['split_date']:
+    # 僅在無 Adj Close 時才手動補正（Adj Close 已內建）
+    if not adj_used and cfg['split_date']:
         sd = pd.Timestamp(cfg['split_date'])
         df.loc[df['Date'] < sd, 'Close'] /= cfg['split_ratio']
 
@@ -346,7 +356,7 @@ footer{{
 
 <header>
   <h1>🇹🇼 台灣 ETF 定期定額回測分析</h1>
-  <p>支援多標的比較・五組扣款日・自訂投入金額・可調回測年數 &nbsp;|&nbsp; 資料來源：Yahoo Finance</p>
+  <p>支援多標的比較・五組扣款日・自訂投入金額・可調回測年數 &nbsp;|&nbsp; 資料來源：Yahoo Finance（調整後收盤價）</p>
 </header>
 
 <!-- 控制列 -->
