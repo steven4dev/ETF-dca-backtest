@@ -20,15 +20,16 @@ class NpEncoder(json.JSONEncoder):
 # ── ETF 設定表 ────────────────────────────────────────────────────
 # split_date / split_ratio 已移除：由 load_etf() 自動偵測並補正
 ETF_CONFIG = {
-    '0050':   {'name':'0050 元大台灣50',        'csv':'0050_data.csv'},
-    '0052':   {'name':'0052 富邦科技',           'csv':'0052_data.csv'},
-    '00631L': {'name':'00631L 元大台灣50正2',    'csv':'00631L_data.csv'},
-    '009813': {'name':'009813 街口布局全球',     'csv':'009813_data.csv'},
-    '00770':  {'name':'00770 富邦台灣加權',      'csv':'00770_data.csv'},
-    '009810': {'name':'009810 街口ESG永續',      'csv':'009810_data.csv'},
-    '00981A': {'name':'00981A 國泰優選收益',     'csv':'00981A_data.csv'},
-    '00988A': {'name':'00988A 野村優息存股A',    'csv':'00988A_data.csv'},
-    '00992A': {'name':'00992A 群益台灣科技創新', 'csv':'00992A_data.csv'},
+    '0050':   {'name':'0050 元大台灣50',          'csv':'0050_data.csv'},
+    '0052':   {'name':'0052 富邦科技',             'csv':'0052_data.csv'},
+    '00631L': {'name':'00631L 元大台灣50正2',      'csv':'00631L_data.csv'},
+    '009813': {'name':'009813 街口布局全球',       'csv':'009813_data.csv'},
+    '00770':  {'name':'00770 富邦台灣加權',        'csv':'00770_data.csv'},
+    '009810': {'name':'009810 街口ESG永續',        'csv':'009810_data.csv'},
+    '00935':  {'name':'00935 野村臺灣新科技50',    'csv':'00935_data.csv'},
+    '00981A': {'name':'00981A 國泰優選收益',       'csv':'00981A_data.csv'},
+    '00988A': {'name':'00988A 野村優息存股A',      'csv':'00988A_data.csv'},
+    '00992A': {'name':'00992A 群益台灣科技創新',   'csv':'00992A_data.csv'},
 }
 
 GROUPS = {
@@ -485,6 +486,7 @@ const ETF_COLORS = {{
   '009813': '#f59e0b',
   '00770':  '#e879f9',
   '009810': '#fb923c',
+  '00935':  '#f43f5e',
   '00981A': '#a78bfa',
   '00988A': '#38bdf8',
   '00992A': '#34d399',
@@ -496,7 +498,7 @@ const FMTP = n => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
 const WFMT = v => Math.abs(v) >= 1e8 ? (v/1e8).toFixed(2)+'億' : (v/1e4).toFixed(1)+'萬';
 
 // ── 狀態 ──────────────────────────────────────────────────────────
-let selectedETFs  = ['00992A','00981A','00988A','0052'];
+let selectedETFs  = ['00935','00981A','00988A','0052'];
 let currentYears  = 0.25;
 let currentTotal  = 2000000;
 let currentAmt    = 10000; // 由 calcPerTrade() 動態計算
@@ -1097,8 +1099,8 @@ function renderLayoutTable() {{
     {{month:'2026/08', ratio:68,  label:'提前佈局完成'}},
   ];
 
-  // 取有效結果的標的（依 selectedETFs 順序）
-  const ETFS = selectedETFs.filter(id => lastResults[id] && lastBestPerETF[id]);
+  // 取有效結果的標的（依 selectedETFs 順序，最多顯示 6 支）
+  const ETFS = selectedETFs.filter(id => lastResults[id] && lastBestPerETF[id]).slice(0, 6);
   if (ETFS.length === 0) {{
     document.getElementById('layout-wrap').innerHTML =
       '<p style="color:var(--muted);font-size:.82rem;padding:.5rem 0">請至少選擇一個有效標的</p>';

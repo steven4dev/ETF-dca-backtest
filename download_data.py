@@ -10,8 +10,11 @@ import yfinance as yf
 from pathlib import Path
 
 # ── 設定 ────────────────────────────────────────────────────────
-START_DATE = '2021-01-01'   # 起始日期
-END_DATE   = None            # None = 今日
+from datetime import date, timedelta
+# 起始日期：優先用固定日，若 Yahoo 拒絕則 fallback 到動態 5 年前
+START_DATE  = '2021-01-01'
+START_5Y    = (date.today() - timedelta(days=5*366)).strftime('%Y-%m-%d')
+END_DATE    = None   # None = 今日
 
 ETF_LIST = {
     '0050':   '0050.TW',
@@ -20,6 +23,7 @@ ETF_LIST = {
     '009813': '009813.TW',
     '00770':  '00770.TW',
     '009810': '009810.TW',
+    '00935':  '00935.TW',
     '00981A': '00981A.TW',
     '00988A': '00988A.TW',
     '00992A': '00992A.TW',
@@ -36,15 +40,14 @@ if __name__ == '__main__':
         out = OUTPUT_DIR / f'{etf_id}_data.csv'
         print(f'下載 {etf_id} ({ticker}) …', end=' ')
         try:
-            df = yf.download(
-                ticker,
-                start=START_DATE,
-                end=END_DATE,
-                auto_adjust=False,   # 保留 Adj Close 欄位
-                progress=False,
-            )
-            if df.empty:
-                raise ValueError('無資料')
+            df = yf.download(ticker, start=START_DATE, end=END_DATE,
+                         auto_adjust=False, progress=False)
+        if df.empty:
+            # Yahoo 對某些標的限制固定日期，改用動態 5 年前日期
+            df = yf.download(ticker, start=START_5Y, end=END_DATE,
+                             auto_adjust=False, progress=False)
+        if df.empty:
+            raise ValueError('無資料')
 
             # yfinance 回傳 MultiIndex columns 時展平
             if isinstance(df.columns, type(df.columns)) and hasattr(df.columns, 'get_level_values'):
