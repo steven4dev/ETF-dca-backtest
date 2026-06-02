@@ -402,7 +402,7 @@ footer{{
     <span class="ctrl-label">總投入資金</span>
     <div class="amt-wrap">
       <span>NT$</span>
-      <input type="number" id="invest-total" value="2000000" min="1000" step="10000">
+      <input type="number" id="invest-total" value="1000000" min="1000" step="10000">
     </div>
     <span class="ctrl-label">≈ 每次投入 <span id="per-trade-lbl" style="color:var(--text);font-weight:700">NT$ 10,000</span></span>
   </div>
@@ -505,7 +505,7 @@ const WFMT = v => Math.abs(v) >= 1e8 ? (v/1e8).toFixed(2)+'億' : (v/1e4).toFixe
 // ── 狀態 ──────────────────────────────────────────────────────────
 let selectedETFs  = ['00935','00981A','00988A','0052'];
 let currentYears  = 0.25;
-let currentTotal  = 2000000;
+let currentTotal  = 1000000;
 let currentAmt    = 10000; // 由 calcPerTrade() 動態計算
 let lastResults   = {{}};   // render() 後供 renderLayoutTable() 使用
 let lastBestPerETF = {{}};
