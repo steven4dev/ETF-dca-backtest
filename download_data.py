@@ -12,9 +12,9 @@ from pathlib import Path
 from datetime import date, timedelta
 
 # ── 設定 ────────────────────────────────────────────────────────
-# 優先用固定起始日；若 Yahoo 拒絕則 fallback 到動態 5 年前
-START_DATE = '2021-01-01'
-START_5Y   = (date.today() - timedelta(days=5 * 366)).strftime('%Y-%m-%d')
+# 優先用固定起始日（10 年以上）；若 Yahoo 拒絕則 fallback 到動態 10 年前
+START_DATE  = '2015-01-01'
+START_10Y   = (date.today() - timedelta(days=10 * 366)).strftime('%Y-%m-%d')
 END_DATE   = None   # None = 今日
 
 ETF_LIST = {
@@ -36,13 +36,13 @@ OUTPUT_DIR = Path('.')
 
 
 def download_one(ticker: str) -> 'pd.DataFrame':
-    """下載單一標的，固定日期失敗時自動 fallback 至動態 5 年前。"""
+    """下載單一標的，固定日期失敗時自動 fallback 至動態 10 年前。"""
     import pandas as pd
 
     df = yf.download(ticker, start=START_DATE, end=END_DATE,
                      auto_adjust=False, progress=False)
     if df.empty:
-        df = yf.download(ticker, start=START_5Y, end=END_DATE,
+        df = yf.download(ticker, start=START_10Y, end=END_DATE,
                          auto_adjust=False, progress=False)
     if df.empty:
         raise ValueError('無資料')

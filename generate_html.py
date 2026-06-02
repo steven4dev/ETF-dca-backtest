@@ -394,6 +394,7 @@ footer{{
       <button class="year-btn" data-y="2">2 年</button>
       <button class="year-btn" data-y="3">3 年</button>
       <button class="year-btn" data-y="5">5 年</button>
+      <button class="year-btn" data-y="10">10 年</button>
     </div>
   </div>
   <div class="sep"></div>
