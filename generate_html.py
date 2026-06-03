@@ -529,6 +529,8 @@ let lastBestPerETF = {{}};
 function calcPerTrade() {{
   const months = Math.max(1, Math.round(currentYears * 12));
   currentAmt = Math.round(currentTotal / (months * 6));
+  const wrap = document.getElementById('derived-lbl');
+  if (wrap) wrap.style.display = investMode === 'lump' ? 'none' : '';
   const lbl = document.getElementById('per-trade-lbl');
   if (lbl) lbl.textContent = 'NT$ ' + currentAmt.toLocaleString('zh-TW');
 }}
@@ -562,6 +564,8 @@ function syncToggleUI() {{
   document.querySelectorAll('#mode-toggle .toggle-opt').forEach(o => {{
     o.classList.toggle('active', o.dataset.mode === investMode);
   }});
+  const wrap = document.getElementById('derived-lbl');
+  if (wrap) wrap.style.display = investMode === 'lump' ? 'none' : '';
 }}
 
 function toggleInvestMode() {{
