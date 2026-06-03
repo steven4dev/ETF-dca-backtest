@@ -301,6 +301,10 @@ header p{{color:var(--muted);margin-top:.1rem;font-size:.82rem;}}
   border-radius:8px;padding:.7rem;text-align:center;transition:border-color .2s;
 }}
 .kpi:hover{{border-color:var(--accent);}}
+.kpi-stock{{
+  border:2.5px solid var(--yellow) !important;
+  box-shadow:0 0 8px rgba(245,158,11,.25);
+}}
 .kpi .val{{font-size:1.1rem;font-weight:700;}}
 .kpi .lbl{{font-size:.67rem;color:var(--muted);margin-top:.1rem;}}
 .pos{{color:var(--green);}} .neg{{color:var(--red);}} .neu{{color:var(--accent);}}
@@ -967,7 +971,8 @@ function render() {{
     const secC     = secRet   >= 0 ? 'pos' : 'neg';
     const primLbl  = isDca ? '📈 定期定額' : '📍 單筆投入';
     const secLbl   = isDca ? '📍 單筆投入' : '📈 定期定額';
-    return '<div class="kpi">' +
+    const isStock = /^\d{{4}}$/.test(id);
+    return '<div class="kpi' + (isStock ? ' kpi-stock' : '') + '">' +
       '<div class="val ' + primC + '">' + FMTP(primRet) + '</div>' +
       '<div class="lbl">' + id + ' ' + primLbl + '</div>' +
       '<div style="margin-top:.22rem;padding-top:.22rem;border-top:1px solid var(--border)">' +
