@@ -522,7 +522,7 @@ let selectedETFs  = ['00935','00981A','00988A','0052'];
 let currentYears  = 0.25;
 let currentTotal  = 1000000;
 let currentAmt    = 10000;
-let investMode     = 'dca';   // 'dca'=定期定額  |  'lump'=單筆買入持有（回測起點）
+let investMode     = 'dca';   // 'dca'=定期定額  |  'lump'=單筆投入
 let lastResults    = {{}};
 let lastBestPerETF = {{}};
 
@@ -571,7 +571,7 @@ function syncToggleUI() {{
 function toggleInvestMode() {{
   investMode = investMode === 'dca' ? 'lump' : 'dca';
   syncToggleUI();
-  showToast(investMode === 'lump' ? '📍 單筆買入持有（回測起點）' : '📈 定期定額模式');
+  showToast(investMode === 'lump' ? '📍 單筆投入' : '📈 定期定額模式');
   render();
 }}
 
@@ -836,34 +836,14 @@ function updateGroupCurveChart(results) {{
 // ════════════════════════════════════════════════════════════════
 //  主 render
 // ════════════════════════════════════════════════════════════════
-function renderLumpMode() {{
-  // ── 單筆買入持有：回測起點一次性投入，持有至今 ───────────────
-  const lumpRes = {{}};
-  for (const id of selectedETFs) {{
-    const etf    = ETF_DB[id];
-    const maxYrs = Math.min(currentYears, etf.dataYears);
-    if (maxYrs < 0.08) continue;
-    const {{ daily, actualYears }} = sliceETF(id, maxYrs);
-    if (daily.length < 5) continue;
-    const r = calcLumpSum(daily, etf.finalPrice, currentTotal, actualYears);
-    if (r) lumpRes[id] = r;
-  }}
-  const lumpIds = Object.keys(lumpRes).sort((a,b) => lumpRes[b].returnPct - lumpRes[a].returnPct);
+function renderLumpTableCharts(lumpRes, activeIds, dcaResults, dcaBestPerETF) {{
+  const lumpIds = [...activeIds].sort((a,b) => (lumpRes[b]?.returnPct??-999) - (lumpRes[a]?.returnPct??-999));
   if (!lumpIds.length) return;
-
-  // KPI
-  document.getElementById('kpi-grid').innerHTML = lumpIds.map(id => {{
-    const r = lumpRes[id];
-    const c = r.returnPct >= 0 ? 'pos' : 'neg';
-    return '<div class="kpi"><div class="val ' + c + '">' + FMTP(r.returnPct) + '</div>' +
-           '<div class="lbl">' + id + ' 單筆買入持有（回測起點）</div></div>';
-  }}).join('');
 
   // 績效表
   const tbody = document.getElementById('table-body');
-  // 動態改表頭
-  const ths = document.querySelectorAll('thead th');
-  if (ths.length >= 3) {{ ths[1].textContent='進場日期（起點）'; ths[2].textContent='進場價格'; }}
+  const thEls = document.querySelectorAll('thead th');
+  if (thEls.length >= 3) {{ thEls[1].textContent='進場日期（起點）'; thEls[2].textContent='進場價格'; }}
 
   tbody.innerHTML = lumpIds.map(id => {{
     const r   = lumpRes[id];
@@ -871,13 +851,10 @@ function renderLumpMode() {{
     const col = ETF_COLORS[id] || '#888';
     const rc  = r.returnPct >= 0 ? 'color:var(--green)' : 'color:var(--red)';
     const cc  = r.cagr >= 0 ? 'color:var(--green)' : 'color:var(--red)';
-    // 找最佳 DCA 報酬做對比
-    const dcaBest = lastResults[id]
-      ? GNAMES.reduce((a,b) => (lastResults[id][a]||{{returnPct:-999}}).returnPct > (lastResults[id][b]||{{returnPct:-999}}).returnPct ? a : b)
-      : null;
-    const dcaRet  = dcaBest && lastResults[id] ? lastResults[id][dcaBest].returnPct : null;
-    const vs = dcaRet !== null
-      ? '<span style="font-size:.68rem;color:var(--muted)"> vs DCA最佳 ' + FMTP(dcaRet) + '</span>'
+    const dcaBest = dcaResults[id] && dcaBestPerETF[id]
+      ? dcaResults[id][dcaBestPerETF[id]].returnPct : null;
+    const vs = dcaBest !== null
+      ? '<span style="font-size:.68rem;color:var(--muted)"> vs DCA最佳 ' + FMTP(dcaBest) + '</span>'
       : '';
     return '<tr>' +
       '<td><span class="etf-badge" style="background:' + col + '22;color:' + col + ';border:1px solid ' + col + '44">' + id + '</span>' +
@@ -896,10 +873,9 @@ function renderLumpMode() {{
   }}).join('');
 
   // Bar charts
-  const barLabels = lumpIds;
-  const barBg     = lumpIds.map(id => ETF_COLORS[id] || '#888');
+  const barBg = lumpIds.map(id => ETF_COLORS[id] || '#888');
   function updateBarL(chart, data, fmtFn, colors) {{
-    chart.data.labels   = barLabels;
+    chart.data.labels   = lumpIds;
     chart.data.datasets = [{{ data, backgroundColor: colors || barBg, borderRadius:6, borderSkipped:false }}];
     chart.options.scales.y.ticks.callback = fmtFn;
     chart.options.plugins.tooltip.callbacks.label = c => ' ' + fmtFn(c.raw);
@@ -909,46 +885,37 @@ function renderLumpMode() {{
   updateBarL(chartBestCagr,   lumpIds.map(id=>lumpRes[id].cagr),      v=>v.toFixed(2)+'%');
   updateBarL(chartBestDD,     lumpIds.map(id=>lumpRes[id].maxDrawdown),v=>v.toFixed(2)+'%',
     lumpIds.map(id=>{{ const dd=lumpRes[id].maxDrawdown; return dd>-15?'#22c55e':dd>-30?'#f59e0b':'#ef4444'; }}));
-
-  // 隱藏 DCA 專用圖表（五組分布、成長曲線）
-  chartGroupDist.data.datasets = []; chartGroupDist.update('none');
-  chartCurveBest.data.datasets = []; chartCurveBest.update('none');
-  chartCurveGroups.data.datasets=[]; chartCurveGroups.update('none');
+  chartGroupDist.data.datasets  = []; chartGroupDist.update('none');
+  chartCurveBest.data.datasets  = []; chartCurveBest.update('none');
+  chartCurveGroups.data.datasets= []; chartCurveGroups.update('none');
 
   // 結論
   const best = lumpIds[0];
   const br   = lumpRes[best];
-  const dcaBestId = Object.keys(lastResults).length
-    ? Object.keys(lastResults).reduce((a,b) =>
-        (lastResults[a][lastBestPerETF[a]]||{{returnPct:-999}}).returnPct >
-        (lastResults[b][lastBestPerETF[b]]||{{returnPct:-999}}).returnPct ? a : b)
-    : null;
-  const dcaBestRet = dcaBestId && lastBestPerETF[dcaBestId]
-    ? lastResults[dcaBestId][lastBestPerETF[dcaBestId]].returnPct : null;
+  const dcaBestRet = dcaResults[best] && dcaBestPerETF[best]
+    ? dcaResults[best][dcaBestPerETF[best]].returnPct : null;
   document.getElementById('conclusion').innerHTML =
-    '<div class="c-card"><h3>📍 單筆買入持有（回測起點）</h3>' +
-    '<p style="margin-bottom:.4rem">進場時機：各標的選定期間<span class="hl">最高收盤價</span>當日（= 最不利進場點）</p>' +
+    '<div class="c-card"><h3>📍 單筆買入持有</h3>' +
+    '<p style="margin-bottom:.4rem">進場時機：各標的<span class="hl">回測起點第一個交易日</span>買入，持有至今</p>' +
     '<ul>' +
-    '<li>報酬最佳：<span class="hl">' + ETF_DB[best].name + '</span> ' + FMTP(br.returnPct) + '，買入價 NT$ ' + br.buyPrice.toFixed(2) + '（' + br.buyDate + '）</li>' +
+    '<li>報酬最佳：<span class="hl">' + ETF_DB[best].name + '</span> ' + FMTP(br.returnPct) +
+    '，買入價 NT$ ' + br.buyPrice.toFixed(2) + '（' + br.buyDate + '）</li>' +
     (dcaBestRet !== null ? '<li>同期 DCA 最佳：<span class="hl">' + FMTP(dcaBestRet) + '</span> — ' +
       (br.returnPct > dcaBestRet ? '<span class="gr">單筆勝出</span>' : '<span class="rd">DCA 較優</span>') + '</li>' : '') +
-    '<li style="margin-top:.3rem;color:var(--muted);font-size:.78rem">此模式假設一次性投入全部資金於最高點，為最不利情境壓力測試</li>' +
+    '<li style="margin-top:.3rem;color:var(--muted);font-size:.78rem">此模式模擬於回測起點一次性買入持有，與 DCA 分批投入直接比較</li>' +
     '</ul></div>';
-
-  lastResults = {{}}; lastBestPerETF = {{}};
-  renderLayoutTable();
 }}
 
+
 function render() {{
-  if (investMode === 'lump') {{ renderLumpMode(); return; }}
-  // ── 計算所有選中 ETF 的所有組合 ─────────────────────────────
-  const results = {{}};   // {{etfId: {{組合一: {{...}}, ...}}}}
+  // ── 計算 DCA 結果 ────────────────────────────────────────────
+  const results = {{}};
   const bestPerETF = {{}};
 
   for (const id of selectedETFs) {{
     const etf = ETF_DB[id];
     const maxYrs = Math.min(currentYears, etf.dataYears);
-    if (maxYrs < 0.08) continue; // 資料太少跳過
+    if (maxYrs < 0.08) continue;
     const {{ daily, sched, actualYears }} = sliceETF(id, maxYrs);
     if (daily.length < 5) continue;
     results[id] = {{}};
@@ -961,17 +928,53 @@ function render() {{
   const activeIds = Object.keys(results);
   if (!activeIds.includes(focusETF)) focusETF = activeIds[0] || selectedETFs[0];
 
-  // ── KPI（依報酬率降冪排序）────────────────────────────────────
+  // ── 計算 單筆投入 結果（回測起點一次性買入）────────────────────
+  const lumpRes = {{}};
+  for (const id of activeIds) {{
+    const etf = ETF_DB[id];
+    const maxYrs = Math.min(currentYears, etf.dataYears);
+    const {{ daily, actualYears }} = sliceETF(id, maxYrs);
+    const r = calcLumpSum(daily, etf.finalPrice, currentTotal, actualYears);
+    if (r) lumpRes[id] = r;
+  }}
+
+  // ── KPI：兩種模式都顯示，排序依目前切換的模式 ──────────────────
   const kpiEl = document.getElementById('kpi-grid');
-  const kpis = activeIds.map(id => {{
-    const bg = bestPerETF[id];
-    const r  = results[id][bg];
-    return {{ v: FMTP(r.returnPct), l: id + ' 最佳報酬',
-              c: r.returnPct>=0?'pos':'neg', sort: r.returnPct }};
-  }}).sort((a, b) => b.sort - a.sort);
-  kpiEl.innerHTML = kpis.map(k=>
-    `<div class="kpi"><div class="val ${{k.c}}">${{k.v}}</div><div class="lbl">${{k.l}}</div></div>`
-  ).join('');
+  const sortedIds = [...activeIds].sort((a, b) => {{
+    const sa = investMode === 'dca'
+      ? results[a][bestPerETF[a]].returnPct
+      : (lumpRes[a]?.returnPct ?? -999);
+    const sb = investMode === 'dca'
+      ? results[b][bestPerETF[b]].returnPct
+      : (lumpRes[b]?.returnPct ?? -999);
+    return sb - sa;
+  }});
+  kpiEl.innerHTML = sortedIds.map(id => {{
+    const dcaR  = results[id][bestPerETF[id]];
+    const lumpR = lumpRes[id];
+    const isDca = investMode === 'dca';
+    const primRet  = isDca ? dcaR.returnPct  : (lumpR?.returnPct ?? 0);
+    const secRet   = isDca ? (lumpR?.returnPct ?? 0) : dcaR.returnPct;
+    const primC    = primRet  >= 0 ? 'pos' : 'neg';
+    const secC     = secRet   >= 0 ? 'pos' : 'neg';
+    const primLbl  = isDca ? '📈 定期定額' : '📍 單筆投入';
+    const secLbl   = isDca ? '📍 單筆投入' : '📈 定期定額';
+    return '<div class="kpi">' +
+      '<div class="val ' + primC + '">' + FMTP(primRet) + '</div>' +
+      '<div class="lbl">' + id + ' ' + primLbl + '</div>' +
+      '<div style="margin-top:.22rem;padding-top:.22rem;border-top:1px solid var(--border)">' +
+      '<div class="val ' + secC + '" style="font-size:.92rem">' + FMTP(secRet) + '</div>' +
+      '<div class="lbl">' + secLbl + '</div>' +
+      '</div></div>';
+  }}).join('');
+
+  // ── 若為單筆模式，只更新表格、圖表、結論後返回 ─────────────────
+  if (investMode === 'lump') {{
+    renderLumpTableCharts(lumpRes, activeIds, results, bestPerETF);
+    lastResults = results; lastBestPerETF = bestPerETF;
+    renderLayoutTable();
+    return;
+  }}
 
   // ── 績效表 ──────────────────────────────────────────────────
   const tbody = document.getElementById('table-body');
@@ -1210,7 +1213,7 @@ document.querySelectorAll('#mode-toggle .toggle-opt').forEach(opt => {{
     if (opt.dataset.mode === investMode) return;
     investMode = opt.dataset.mode;
     syncToggleUI();
-    showToast(investMode === 'lump' ? '📍 單筆買入持有（回測起點）' : '📈 定期定額模式');
+    showToast(investMode === 'lump' ? '📍 單筆投入' : '📈 定期定額模式');
     render();
   }});
 }});
