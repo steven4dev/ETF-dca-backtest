@@ -233,14 +233,19 @@ header p{{color:var(--muted);margin-top:.1rem;font-size:.82rem;}}
 .year-btn.active{{background:var(--accent);color:#fff;}}
 .year-btn:hover:not(.active){{background:#3a3d50;color:var(--text);}}
 
-/* 模式切換按鈕 */
-.mode-btn{{
-  background:var(--border);color:var(--muted);border:none;
-  padding:.2rem .55rem;border-radius:5px;cursor:pointer;
-  font-size:.85rem;font-weight:700;transition:all .15s;line-height:1;
+/* 投資策略切換 */
+.invest-toggle{{
+  display:flex;background:var(--border);
+  border-radius:6px;padding:2px;gap:2px;
 }}
-.mode-btn:hover{{background:var(--accent);color:#fff;}}
-.mode-btn.active{{background:var(--accent);color:#fff;}}
+.toggle-opt{{
+  padding:.18rem .7rem;border-radius:4px;
+  font-size:.76rem;font-weight:600;color:var(--muted);
+  cursor:pointer;user-select:none;white-space:nowrap;
+  transition:background .18s,color .18s;
+}}
+.toggle-opt.active{{background:var(--accent);color:#fff;}}
+.toggle-opt:not(.active):hover{{color:var(--text);}}
 
 /* 金額輸入 */
 .amt-wrap{{
@@ -408,7 +413,7 @@ footer{{
   </div>
   <div class="sep"></div>
   <div class="ctrl-group">
-    <button class="mode-btn" id="mode-toggle" title="切換輸入模式">⇄</button>
+    <div class="invest-toggle" id="mode-toggle"><span class="toggle-opt active" data-mode="dca">定期定額</span><span class="toggle-opt" data-mode="lump">單筆投入</span></div>
     <span class="ctrl-label" id="invest-input-lbl">總投入資金</span>
     <div class="amt-wrap">
       <span>NT$</span>
@@ -553,16 +558,16 @@ function calcLumpSum(daily, finalPrice, totalAmount, actualYears) {{
 }}
 
 // ── 切換投資策略 ─────────────────────────────────────────────────
+function syncToggleUI() {{
+  document.querySelectorAll('#mode-toggle .toggle-opt').forEach(o => {{
+    o.classList.toggle('active', o.dataset.mode === investMode);
+  }});
+}}
+
 function toggleInvestMode() {{
   investMode = investMode === 'dca' ? 'lump' : 'dca';
-  const btn = document.getElementById('mode-toggle');
-  if (investMode === 'lump') {{
-    btn.classList.add('active');
-    showToast('📍 單筆投入（期間起點）');
-  }} else {{
-    btn.classList.remove('active');
-    showToast('📈 定期定額模式');
-  }}
+  syncToggleUI();
+  showToast(investMode === 'lump' ? '📍 單筆買入持有（回測起點）' : '📈 定期定額模式');
   render();
 }}
 
@@ -1196,7 +1201,15 @@ document.getElementById('invest-total').addEventListener('input', e => {{
   }}, 300);
 }});
 
-document.getElementById('mode-toggle').addEventListener('click', toggleInvestMode);
+document.querySelectorAll('#mode-toggle .toggle-opt').forEach(opt => {{
+  opt.addEventListener('click', () => {{
+    if (opt.dataset.mode === investMode) return;
+    investMode = opt.dataset.mode;
+    syncToggleUI();
+    showToast(investMode === 'lump' ? '📍 單筆買入持有（回測起點）' : '📈 定期定額模式');
+    render();
+  }});
+}});
 
 // ── 收摺區塊 ────────────────────────────────────────────────────
 document.querySelectorAll('.section-title[data-sec]').forEach(title => {{
