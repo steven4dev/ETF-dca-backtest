@@ -528,22 +528,20 @@ function calcPerTrade() {{
   if (lbl) lbl.textContent = 'NT$ ' + currentAmt.toLocaleString('zh-TW');
 }}
 
-// ── 單筆投入計算（買在選定期間最高價 = 最差時點）────────────────
+// ── 單筆投入計算（在選定期間第一天買入，與 DCA 同期比較）─────
 function calcLumpSum(daily, finalPrice, totalAmount, actualYears) {{
   if (!daily.length || totalAmount <= 0) return null;
-  let peakIdx = 0;
-  for (let i = 1; i < daily.length; i++) {{
-    if (daily[i].p > daily[peakIdx].p) peakIdx = i;
-  }}
-  const buyPrice   = daily[peakIdx].p;
-  const buyDate    = daily[peakIdx].d;
+  // 期間起點（第一個交易日）
+  const buyPrice   = daily[0].p;
+  const buyDate    = daily[0].d;
   const shares     = totalAmount / buyPrice;
   const finalValue = shares * finalPrice;
   const returnPct  = (finalValue - totalAmount) / totalAmount * 100;
   const cagr       = actualYears > 0.1
     ? (Math.pow(finalValue / totalAmount, 1 / actualYears) - 1) * 100 : 0;
+  // 持有期間最大回撤
   let peakMV = totalAmount, maxDD = 0;
-  for (let i = peakIdx; i < daily.length; i++) {{
+  for (let i = 0; i < daily.length; i++) {{
     const mv = shares * daily[i].p;
     if (mv > peakMV) peakMV = mv;
     const peakRet = (peakMV - totalAmount) / totalAmount * 100;
@@ -560,7 +558,7 @@ function toggleInvestMode() {{
   const btn = document.getElementById('mode-toggle');
   if (investMode === 'lump') {{
     btn.classList.add('active');
-    showToast('📍 單筆投入（最差時點）');
+    showToast('📍 單筆投入（期間起點）');
   }} else {{
     btn.classList.remove('active');
     showToast('📈 定期定額模式');
@@ -856,7 +854,7 @@ function renderLumpMode() {{
   const tbody = document.getElementById('table-body');
   // 動態改表頭
   const ths = document.querySelectorAll('thead th');
-  if (ths.length >= 3) {{ ths[1].textContent='進場日期（高點）'; ths[2].textContent='進場價格'; }}
+  if (ths.length >= 3) {{ ths[1].textContent='進場日期（起點）'; ths[2].textContent='進場價格'; }}
 
   tbody.innerHTML = lumpIds.map(id => {{
     const r   = lumpRes[id];
