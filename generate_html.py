@@ -517,7 +517,7 @@ let selectedETFs  = ['00935','00981A','00988A','0052'];
 let currentYears  = 0.25;
 let currentTotal  = 1000000;
 let currentAmt    = 10000;
-let investMode     = 'dca';   // 'dca'=定期定額  |  'lump'=單筆（最差時點）
+let investMode     = 'dca';   // 'dca'=定期定額  |  'lump'=單筆買入持有（回測起點）
 let lastResults    = {{}};
 let lastBestPerETF = {{}};
 
@@ -828,7 +828,7 @@ function updateGroupCurveChart(results) {{
 //  主 render
 // ════════════════════════════════════════════════════════════════
 function renderLumpMode() {{
-  // ── 單筆投入：買在選定期間最高價（最差時點）─────────────────
+  // ── 單筆買入持有：回測起點一次性投入，持有至今 ───────────────
   const lumpRes = {{}};
   for (const id of selectedETFs) {{
     const etf    = ETF_DB[id];
@@ -847,7 +847,7 @@ function renderLumpMode() {{
     const r = lumpRes[id];
     const c = r.returnPct >= 0 ? 'pos' : 'neg';
     return '<div class="kpi"><div class="val ' + c + '">' + FMTP(r.returnPct) + '</div>' +
-           '<div class="lbl">' + id + ' 單筆報酬（最差時點）</div></div>';
+           '<div class="lbl">' + id + ' 單筆買入持有（回測起點）</div></div>';
   }}).join('');
 
   // 績效表
