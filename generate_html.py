@@ -233,6 +233,15 @@ header p{{color:var(--muted);margin-top:.1rem;font-size:.82rem;}}
 .year-btn.active{{background:var(--accent);color:#fff;}}
 .year-btn:hover:not(.active){{background:#3a3d50;color:var(--text);}}
 
+/* 模式切換按鈕 */
+.mode-btn{{
+  background:var(--border);color:var(--muted);border:none;
+  padding:.2rem .55rem;border-radius:5px;cursor:pointer;
+  font-size:.85rem;font-weight:700;transition:all .15s;line-height:1;
+}}
+.mode-btn:hover{{background:var(--accent);color:#fff;}}
+.mode-btn.active{{background:var(--accent);color:#fff;}}
+
 /* 金額輸入 */
 .amt-wrap{{
   display:flex;align-items:center;gap:.3rem;
@@ -399,12 +408,13 @@ footer{{
   </div>
   <div class="sep"></div>
   <div class="ctrl-group">
-    <span class="ctrl-label">總投入資金</span>
+    <button class="mode-btn" id="mode-toggle" title="切換輸入模式">⇄</button>
+    <span class="ctrl-label" id="invest-input-lbl">總投入資金</span>
     <div class="amt-wrap">
       <span>NT$</span>
-      <input type="number" id="invest-total" value="1000000" min="1000" step="10000">
+      <input type="number" id="invest-total" value="1000000" min="1" step="10000">
     </div>
-    <span class="ctrl-label">≈ 每次投入 <span id="per-trade-lbl" style="color:var(--text);font-weight:700">NT$ 10,000</span></span>
+    <span class="ctrl-label" id="derived-lbl">≈ 每次投入 <span id="per-trade-lbl" style="color:var(--text);font-weight:700">NT$ 10,000</span></span>
   </div>
 </div>
 
@@ -506,15 +516,50 @@ const WFMT = v => Math.abs(v) >= 1e8 ? (v/1e8).toFixed(2)+'億' : (v/1e4).toFixe
 let selectedETFs  = ['00935','00981A','00988A','0052'];
 let currentYears  = 0.25;
 let currentTotal  = 1000000;
-let currentAmt    = 10000; // 由 calcPerTrade() 動態計算
-let lastResults   = {{}};   // render() 後供 renderLayoutTable() 使用
+let currentAmt    = 10000;
+let inputMode     = 'total';  // 'total'=輸入總額  'single'=輸入單筆
+let lastResults   = {{}};
 let lastBestPerETF = {{}};
 
 function calcPerTrade() {{
   const months = Math.max(1, Math.round(currentYears * 12));
-  currentAmt = Math.round(currentTotal / (months * 6));
-  const lbl = document.getElementById('per-trade-lbl');
-  if (lbl) lbl.textContent = 'NT$ ' + currentAmt.toLocaleString('zh-TW');
+  const trades = months * 6;
+  if (inputMode === 'total') {{
+    currentAmt = Math.round(currentTotal / trades);
+  }} else {{
+    currentTotal = currentAmt * trades;
+  }}
+  // 更新衍生標籤
+  const derivedEl = document.getElementById('derived-lbl');
+  if (derivedEl) {{
+    if (inputMode === 'total') {{
+      derivedEl.innerHTML = '≈ 每次投入 <span style="color:var(--text);font-weight:700">NT$ ' + currentAmt.toLocaleString('zh-TW') + '</span>';
+    }} else {{
+      derivedEl.innerHTML = '≈ 總投入 <span style="color:var(--text);font-weight:700">NT$ ' + currentTotal.toLocaleString('zh-TW') + '</span>';
+    }}
+  }}
+}}
+
+function toggleInputMode() {{
+  inputMode = inputMode === 'total' ? 'single' : 'total';
+  const input   = document.getElementById('invest-total');
+  const lbl     = document.getElementById('invest-input-lbl');
+  const modeBtn = document.getElementById('mode-toggle');
+  if (inputMode === 'total') {{
+    lbl.textContent  = '總投入資金';
+    input.step       = 10000;
+    input.value      = currentTotal;
+    modeBtn.classList.remove('active');
+    showToast('💰 總投入資金模式');
+  }} else {{
+    lbl.textContent  = '單筆投入';
+    input.step       = 1000;
+    input.value      = currentAmt;
+    modeBtn.classList.add('active');
+    showToast('✏️ 單筆投入模式');
+  }}
+  calcPerTrade();
+  render();
 }}
 let focusETF      = '0050';   // 五組曲線聚焦標的
 let focusGroup    = null;     // null = 全部組合
@@ -1035,9 +1080,16 @@ document.getElementById('invest-total').addEventListener('input', e => {{
   clearTimeout(debounce);
   debounce = setTimeout(() => {{
     const v = parseInt(e.target.value, 10);
-    if (v >= 1000) {{ currentTotal = v; calcPerTrade(); render(); }}
+    if (v >= 1) {{
+      if (inputMode === 'total') {{ currentTotal = v; }}
+      else                       {{ currentAmt   = v; }}
+      calcPerTrade();
+      render();
+    }}
   }}, 300);
 }});
+
+document.getElementById('mode-toggle').addEventListener('click', toggleInputMode);
 
 // ── 收摺區塊 ────────────────────────────────────────────────────
 document.querySelectorAll('.section-title[data-sec]').forEach(title => {{
