@@ -917,7 +917,7 @@ function renderLumpMode() {{
   const dcaBestRet = dcaBestId && lastBestPerETF[dcaBestId]
     ? lastResults[dcaBestId][lastBestPerETF[dcaBestId]].returnPct : null;
   document.getElementById('conclusion').innerHTML =
-    '<div class="c-card"><h3>📍 單筆投入結果（最差時點）</h3>' +
+    '<div class="c-card"><h3>📍 單筆買入持有（回測起點）</h3>' +
     '<p style="margin-bottom:.4rem">進場時機：各標的選定期間<span class="hl">最高收盤價</span>當日（= 最不利進場點）</p>' +
     '<ul>' +
     '<li>報酬最佳：<span class="hl">' + ETF_DB[best].name + '</span> ' + FMTP(br.returnPct) + '，買入價 NT$ ' + br.buyPrice.toFixed(2) + '（' + br.buyDate + '）</li>' +
