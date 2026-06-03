@@ -199,8 +199,11 @@ header p{{color:var(--muted);margin-top:.1rem;font-size:.82rem;}}
 /* ── Control bar ── */
 .ctrl-bar{{
   background:var(--card);border-bottom:1px solid var(--border);
-  padding:.6rem 1.2rem;display:flex;flex-wrap:wrap;
-  align-items:center;gap:.7rem;
+  padding:.6rem 0;
+}}
+.ctrl-bar-inner{{
+  max-width:1280px;margin:0 auto;padding:0 1.2rem;
+  display:flex;flex-wrap:wrap;align-items:center;gap:.7rem;
 }}
 .ctrl-group{{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;}}
 .ctrl-label{{color:var(--muted);font-size:.78rem;font-weight:600;white-space:nowrap;}}
@@ -400,6 +403,7 @@ footer{{
 
 <!-- 控制列 -->
 <div class="ctrl-bar">
+<div class="ctrl-bar-inner">
   <div class="ctrl-group">
     <span class="ctrl-label">選擇標的</span>
     <button class="sel-all-btn" id="btn-select-all">全選</button>
@@ -428,6 +432,7 @@ footer{{
     </div>
     <span class="ctrl-label" id="derived-lbl">≈ 每次投入 <span id="per-trade-lbl" style="color:var(--text);font-weight:700">NT$ 10,000</span></span>
   </div>
+</div>
 </div>
 
 <div class="container">
