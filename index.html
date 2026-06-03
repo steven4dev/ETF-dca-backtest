@@ -284,6 +284,11 @@ footer{
     <div class="kpi-grid" id="kpi-grid"></div>
   </div>
 
+  <div class="section-title" data-sec="sec-conclusion">💡 結論分析 <span class="chev">▼</span></div>
+  <div class="sec-body" id="sec-conclusion">
+    <div class="conclusion-grid" id="conclusion"></div>
+  </div>
+
   <div class="section-title collapsed" data-sec="sec-table">🏆 五組扣款日績效對照表 <span class="chev">▼</span></div>
   <div class="sec-body collapsed" id="sec-table">
     <div class="table-wrap"><table>
@@ -329,13 +334,8 @@ footer{
     </div>
   </div>
 
-  <div class="section-title" data-sec="sec-conclusion">💡 結論分析 <span class="chev">▼</span></div>
-  <div class="sec-body" id="sec-conclusion">
-    <div class="conclusion-grid" id="conclusion"></div>
-  </div>
-
-  <div class="section-title" data-sec="sec-layout">📊 2026 Q2-Q3 加速佈局配置表（8月完成版）<span class="chev">▼</span></div>
-  <div class="sec-body" id="sec-layout">
+  <div class="section-title collapsed" data-sec="sec-layout">📊 2026 Q2-Q3 加速佈局配置表（8月完成版）<span class="chev">▼</span></div>
+  <div class="sec-body collapsed" id="sec-layout">
     <div id="layout-wrap"></div>
   </div>
 </div>
@@ -377,7 +377,7 @@ const FMTP = n => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
 const WFMT = v => Math.abs(v) >= 1e8 ? (v/1e8).toFixed(2)+'億' : (v/1e4).toFixed(1)+'萬';
 
 // ── 狀態 ──────────────────────────────────────────────────────────
-let selectedETFs  = ['00935','00981A','00988A','0052'];
+let selectedETFs  = Object.keys(ETF_DB);
 let currentYears  = 0.25;
 let currentTotal  = 1000000;
 let currentAmt    = 10000;
