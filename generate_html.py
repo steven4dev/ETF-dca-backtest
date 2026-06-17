@@ -413,7 +413,9 @@ footer{{
   <div class="ctrl-group">
     <span class="ctrl-label">回測期間</span>
     <div class="year-btns" id="year-btns">
-      <button class="year-btn active" data-y="0.25">3 月</button>
+      <button class="year-btn active" data-y="0.0833">1 月</button>
+      <button class="year-btn" data-y="0.1667">2 月</button>
+      <button class="year-btn" data-y="0.25">3 月</button>
       <button class="year-btn" data-y="0.5">6 月</button>
       <button class="year-btn" data-y="1">1 年</button>
       <button class="year-btn" data-y="2">2 年</button>
@@ -535,7 +537,7 @@ const WFMT = v => Math.abs(v) >= 1e8 ? (v/1e8).toFixed(2)+'億' : (v/1e4).toFixe
 
 // ── 狀態 ──────────────────────────────────────────────────────────
 let selectedETFs  = Object.keys(ETF_DB);
-let currentYears  = 0.25;
+let currentYears  = 0.0833;
 let currentTotal  = 1000000;
 let currentAmt    = 10000;
 let investMode     = 'dca';   // 'dca'=定期定額  |  'lump'=單筆投入
