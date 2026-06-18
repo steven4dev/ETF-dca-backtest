@@ -20,22 +20,22 @@ class NpEncoder(json.JSONEncoder):
 # ── ETF 設定表 ────────────────────────────────────────────────────
 # split_date / split_ratio 已移除：由 load_etf() 自動偵測並補正
 ETF_CONFIG = {
-    '0050':   {'name':'0050 元大台灣50',          'csv':'0050_data.csv'},
-    '0052':   {'name':'0052 富邦科技',             'csv':'0052_data.csv'},
-    '00631L': {'name':'00631L 元大台灣50正2',        'csv':'00631L_data.csv'},
-    '00685L': {'name':'00685L 群益臺灣加權正2',      'csv':'00685L_data.csv'},
-    '009813': {'name':'009813 街口布局全球',       'csv':'009813_data.csv'},
-    '00735':  {'name':'00735 國泰臺韓科技',          'csv':'00735_data.csv'},
-    '00830':  {'name':'00830 國泰費城半導體',        'csv':'00830_data.csv'},
-    '00770':  {'name':'00770 富邦台灣加權',          'csv':'00770_data.csv'},
-    '009810': {'name':'009810 街口ESG永續',        'csv':'009810_data.csv'},
-    '00935':  {'name':'00935 野村臺灣新科技50',    'csv':'00935_data.csv'},
-    '00981A': {'name':'00981A 國泰優選收益',       'csv':'00981A_data.csv'},
-    '00988A': {'name':'00988A 野村優息存股A',      'csv':'00988A_data.csv'},
-    '00992A': {'name':'00992A 群益台灣科技創新',   'csv':'00992A_data.csv'},
-    '2330':   {'name':'2330 台積電',              'csv':'2330_data.csv'},
-    '2308':   {'name':'2308 台達電',              'csv':'2308_data.csv'},
-    '2454':   {'name':'2454 聯發科',              'csv':'2454_data.csv'},
+    '0050':   {'name':'0050 元大台灣50',          'csv':'0050_data.csv',   'type':'etf'},
+    '0052':   {'name':'0052 富邦科技',             'csv':'0052_data.csv',   'type':'etf'},
+    '00631L': {'name':'00631L 元大台灣50正2',      'csv':'00631L_data.csv', 'type':'etf'},
+    '00685L': {'name':'00685L 群益臺灣加權正2',    'csv':'00685L_data.csv', 'type':'etf'},
+    '009813': {'name':'009813 街口布局全球',       'csv':'009813_data.csv', 'type':'etf'},
+    '00735':  {'name':'00735 國泰臺韓科技',        'csv':'00735_data.csv',  'type':'etf'},
+    '00830':  {'name':'00830 國泰費城半導體',      'csv':'00830_data.csv',  'type':'etf'},
+    '00770':  {'name':'00770 富邦台灣加權',        'csv':'00770_data.csv',  'type':'etf'},
+    '009810': {'name':'009810 街口ESG永續',        'csv':'009810_data.csv', 'type':'etf'},
+    '00935':  {'name':'00935 野村臺灣新科技50',    'csv':'00935_data.csv',  'type':'etf'},
+    '00981A': {'name':'00981A 國泰優選收益',       'csv':'00981A_data.csv', 'type':'etf'},
+    '00988A': {'name':'00988A 野村優息存股A',      'csv':'00988A_data.csv', 'type':'etf'},
+    '00992A': {'name':'00992A 群益台灣科技創新',   'csv':'00992A_data.csv', 'type':'etf'},
+    '2330':   {'name':'2330 台積電',              'csv':'2330_data.csv',   'type':'stock'},
+    '2308':   {'name':'2308 台達電',              'csv':'2308_data.csv',   'type':'stock'},
+    '2454':   {'name':'2454 聯發科',              'csv':'2454_data.csv',   'type':'stock'},
 }
 
 GROUPS = {
@@ -134,6 +134,7 @@ for etf_id, cfg in ETF_CONFIG.items():
     etf_js[etf_id] = {
         'id':         etf_id,
         'name':       cfg['name'],
+        'type':       cfg.get('type', 'etf'),
         'daily':      daily,
         'schedules':  sched,
         'finalPrice': round(float(df['Close'].iloc[-1]), 4),
@@ -407,6 +408,8 @@ footer{{
   <div class="ctrl-group">
     <span class="ctrl-label">選擇標的</span>
     <button class="sel-all-btn" id="btn-select-all">全選</button>
+    <button class="sel-all-btn" id="btn-select-etf">ETF</button>
+    <button class="sel-all-btn" id="btn-select-stock">個股</button>
     <div class="etf-checks" id="etf-checks"></div>
   </div>
   <div class="sep"></div>
@@ -680,6 +683,26 @@ btnSelectAll.addEventListener('click', () => {{
   render();
 }});
 syncSelectAllBtn();
+
+// ── ETF / 個股 快速篩選 ────────────────────────────────────────
+function applyTypeFilter(type) {{
+  const ids = allETFIds.filter(id => ETF_DB[id].type === type);
+  if (!ids.length) return;
+  selectedETFs = [...ids];
+  if (!selectedETFs.includes(focusETF)) focusETF = selectedETFs[0];
+  document.querySelectorAll('.etf-check-item').forEach(item => {{
+    const id = item.dataset.id;
+    const cb = item.querySelector('input');
+    const checked = selectedETFs.includes(id);
+    cb.checked = checked;
+    item.classList.toggle('checked', checked);
+  }});
+  syncSelectAllBtn();
+  render();
+}}
+
+document.getElementById('btn-select-etf').addEventListener('click', () => applyTypeFilter('etf'));
+document.getElementById('btn-select-stock').addEventListener('click', () => applyTypeFilter('stock'));
 
 // ════════════════════════════════════════════════════════════════
 //  資料篩選（依年數）
