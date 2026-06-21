@@ -22,10 +22,10 @@ class NpEncoder(json.JSONEncoder):
 ETF_CONFIG = {
     '0050':   {'name':'0050 元大台灣50',          'csv':'0050_data.csv',   'type':'etf'},
     '0052':   {'name':'0052 富邦科技',             'csv':'0052_data.csv',   'type':'etf'},
-    '00631L': {'name':'00631L 元大台灣50正2',      'csv':'00631L_data.csv', 'type':'etf'},
-    '00663L': {'name':'00663L 國泰臺灣加權正2',    'csv':'00663L_data.csv', 'type':'etf'},
-    '00675L': {'name':'00675L 富邦臺灣加權正2',    'csv':'00675L_data.csv', 'type':'etf'},
-    '00685L': {'name':'00685L 群益臺灣加權正2',    'csv':'00685L_data.csv', 'type':'etf'},
+    '00631L': {'name':'00631L 元大台灣50正2',      'csv':'00631L_data.csv', 'type':'leveraged'},
+    '00663L': {'name':'00663L 國泰臺灣加權正2',    'csv':'00663L_data.csv', 'type':'leveraged'},
+    '00675L': {'name':'00675L 富邦臺灣加權正2',    'csv':'00675L_data.csv', 'type':'leveraged'},
+    '00685L': {'name':'00685L 群益臺灣加權正2',    'csv':'00685L_data.csv', 'type':'leveraged'},
     '009813': {'name':'009813 街口布局全球',       'csv':'009813_data.csv', 'type':'etf'},
     '00735':  {'name':'00735 國泰臺韓科技',        'csv':'00735_data.csv',  'type':'etf'},
     '00830':  {'name':'00830 國泰費城半導體',      'csv':'00830_data.csv',  'type':'etf'},
@@ -411,6 +411,7 @@ footer{{
     <span class="ctrl-label">選擇標的</span>
     <button class="sel-all-btn" id="btn-select-all">全選</button>
     <button class="sel-all-btn" id="btn-select-etf">ETF</button>
+    <button class="sel-all-btn" id="btn-select-leveraged">正二</button>
     <button class="sel-all-btn" id="btn-select-stock">個股</button>
     <div class="etf-checks" id="etf-checks"></div>
   </div>
@@ -704,6 +705,7 @@ function applyTypeFilter(type) {{
 }}
 
 document.getElementById('btn-select-etf').addEventListener('click', () => applyTypeFilter('etf'));
+document.getElementById('btn-select-leveraged').addEventListener('click', () => applyTypeFilter('leveraged'));
 document.getElementById('btn-select-stock').addEventListener('click', () => applyTypeFilter('stock'));
 
 // ════════════════════════════════════════════════════════════════
