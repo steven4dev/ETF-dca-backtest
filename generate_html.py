@@ -23,6 +23,8 @@ ETF_CONFIG = {
     '0050':   {'name':'0050 元大台灣50',          'csv':'0050_data.csv',   'type':'etf'},
     '0052':   {'name':'0052 富邦科技',             'csv':'0052_data.csv',   'type':'etf'},
     '00631L': {'name':'00631L 元大台灣50正2',      'csv':'00631L_data.csv', 'type':'etf'},
+    '00663L': {'name':'00663L 國泰臺灣加權正2',    'csv':'00663L_data.csv', 'type':'etf'},
+    '00675L': {'name':'00675L 富邦臺灣加權正2',    'csv':'00675L_data.csv', 'type':'etf'},
     '00685L': {'name':'00685L 群益臺灣加權正2',    'csv':'00685L_data.csv', 'type':'etf'},
     '009813': {'name':'009813 街口布局全球',       'csv':'009813_data.csv', 'type':'etf'},
     '00735':  {'name':'00735 國泰臺韓科技',        'csv':'00735_data.csv',  'type':'etf'},
