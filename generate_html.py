@@ -939,16 +939,35 @@ function renderLumpTableCharts(lumpRes, activeIds, dcaResults, dcaBestPerETF) {{
   const br   = lumpRes[best];
   const dcaBestRet = dcaResults[best] && dcaBestPerETF[best]
     ? dcaResults[best][dcaBestPerETF[best]].returnPct : null;
+
+  const detailRows = lumpIds.map(id => {{
+    const r   = lumpRes[id];
+    const col = ETF_COLORS[id] || '#888';
+    const rc  = r.returnPct >= 0 ? 'var(--green)' : 'var(--red)';
+    const cc  = r.cagr >= 0 ? 'var(--green)' : 'var(--red)';
+    const profit = r.finalValue - r.totalCost;
+    return `<div style="border:1px solid var(--border);border-radius:8px;padding:.6rem .9rem;margin-bottom:.5rem">
+      <div style="font-weight:700;margin-bottom:.35rem">
+        <span class="etf-badge" style="background:${{col}}22;color:${{col}};border:1px solid ${{col}}44">${{id}}</span>
+        <span style="font-size:.8rem;color:var(--muted);margin-left:.3rem">${{ETF_DB[id].name.split(' ').slice(1).join(' ')}}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:.2rem .8rem;font-size:.82rem">
+        <span>總報酬：<b style="color:${{rc}}">${{FMTP(r.returnPct)}}</b></span>
+        <span>年化報酬：<b style="color:${{cc}}">${{FMTP(r.cagr)}}</b></span>
+        <span>總投入：<b>NT$ ${{FMT(r.totalCost)}}</b></span>
+        <span>總獲益：<b style="color:${{rc}}">NT$ ${{FMT(profit)}}</b></span>
+        <span>最終市值：<b>NT$ ${{FMT(r.finalValue)}}</b></span>
+      </div>
+    </div>`;
+  }}).join('');
+
   document.getElementById('conclusion').innerHTML =
     '<div class="c-card"><h3>📍 單筆買入持有</h3>' +
-    '<p style="margin-bottom:.4rem">進場時機：各標的<span class="hl">回測起點第一個交易日</span>買入，持有至今</p>' +
-    '<ul>' +
-    '<li>報酬最佳：<span class="hl">' + ETF_DB[best].name + '</span> ' + FMTP(br.returnPct) +
-    '，買入價 NT$ ' + br.buyPrice.toFixed(2) + '（' + br.buyDate + '）</li>' +
-    (dcaBestRet !== null ? '<li>同期 DCA 最佳：<span class="hl">' + FMTP(dcaBestRet) + '</span> — ' +
-      (br.returnPct > dcaBestRet ? '<span class="gr">單筆勝出</span>' : '<span class="rd">DCA 較優</span>') + '</li>' : '') +
-    '<li style="margin-top:.3rem;color:var(--muted);font-size:.78rem">此模式模擬於回測起點一次性買入持有，與 DCA 分批投入直接比較</li>' +
-    '</ul></div>';
+    '<p style="margin-bottom:.6rem">進場時機：各標的<span class="hl">回測起點第一個交易日</span>買入，持有至今</p>' +
+    detailRows +
+    (dcaBestRet !== null ? '<p style="margin-top:.5rem;font-size:.8rem;color:var(--muted)">同期 DCA 最佳：' + FMTP(dcaBestRet) + ' — ' +
+      (br.returnPct > dcaBestRet ? '<span class="gr">單筆勝出</span>' : '<span class="rd">DCA 較優</span>') + '</p>' : '') +
+    '</div>';
 }}
 
 
