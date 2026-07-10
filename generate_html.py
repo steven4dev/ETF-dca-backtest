@@ -59,6 +59,13 @@ DAYS_LABEL = {
     '組合五': '5/10/15/20/25/30',
 }
 
+# ── 已知分割設定（Yahoo Finance 未正確還原者手動補正）────────────
+# 格式：{ etf_id: [{'before': 'YYYY-MM-DD', 'ratio': N}, ...] }
+# before：第一個已調整日期（該日之前的歷史價格需除以 ratio）
+KNOWN_SPLITS = {
+    '00685L': [{'before': '2026-06-29', 'ratio': 24}],  # 1拆24，07/07恢復交易，Yahoo從06/29起已調整
+}
+
 # ── 各 ETF 資料處理 ───────────────────────────────────────────────
 def auto_fix_splits(prices: np.ndarray) -> np.ndarray:
     """
@@ -93,8 +100,24 @@ def load_etf(cfg):
     df['Close'] = pd.to_numeric(df[col], errors='coerce')
     df = df.dropna(subset=['Close']).sort_values('Date').reset_index(drop=True)
 
-    # 自動偵測並補正股票分割（Yahoo Finance Adj Close 僅含配息，分割不連續需補正）
-    df['Close'] = auto_fix_splits(df['Close'].values)
+    # 過濾停牌假佔位資料：Volume=0 且 OHLC 四值完全相同
+    if 'Volume' in df.columns and 'Open' in df.columns:
+        placeholder = (
+            (pd.to_numeric(df['Volume'], errors='coerce').fillna(0) == 0) &
+            (df['Open'].astype(str) == df['Close'].astype(str))
+        )
+        df = df[~placeholder].reset_index(drop=True)
+
+    # 已知分割：以官方比例手動補正（優先於 auto_fix_splits）
+    etf_id = cfg.get('id', '')
+    if etf_id in KNOWN_SPLITS:
+        for sp in KNOWN_SPLITS[etf_id]:
+            cut = pd.Timestamp(sp['before'])
+            mask = df['Date'] < cut
+            df.loc[mask, 'Close'] = df.loc[mask, 'Close'] / sp['ratio']
+    else:
+        # 自動偵測並補正股票分割（Yahoo Finance Adj Close 僅含配息，分割不連續需補正）
+        df['Close'] = auto_fix_splits(df['Close'].values)
 
     return df
 
@@ -130,7 +153,7 @@ etf_js = {}   # 輸出給 JS 的大 dict
 
 for etf_id, cfg in ETF_CONFIG.items():
     print(f'處理 {etf_id} ...', end=' ')
-    df    = load_etf(cfg)
+    df    = load_etf({**cfg, 'id': etf_id})
     sched = build_schedules(df)
     daily = [{'d': row['Date'].strftime('%Y-%m-%d'),
               'p': round(float(row['Close']), 4)} for _, row in df.iterrows()]
