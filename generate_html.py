@@ -28,8 +28,8 @@ ETF_CONFIG = {
     '00670L': {'name':'00670L 富邦NASDAQ正2',      'csv':'00670L_data.csv', 'type':'leveraged'},
     '00675L': {'name':'00675L 富邦臺灣加權正2',    'csv':'00675L_data.csv', 'type':'leveraged'},
     '00685L': {'name':'00685L 群益臺灣加權正2',    'csv':'00685L_data.csv', 'type':'leveraged'},
-    'SSO':    {'name':'SSO ProShares S&P500正2',   'csv':'SSO_data.csv',    'type':'leveraged'},
-    'QLD':    {'name':'QLD ProShares NASDAQ正2',   'csv':'QLD_data.csv',    'type':'leveraged'},
+    'SSO':    {'name':'SSO ProShares S&P500正2',   'csv':'SSO_data.csv',    'type':'us_leveraged'},
+    'QLD':    {'name':'QLD ProShares NASDAQ正2',   'csv':'QLD_data.csv',    'type':'us_leveraged'},
     '009813': {'name':'009813 街口布局全球',       'csv':'009813_data.csv', 'type':'etf'},
     '00735':  {'name':'00735 國泰臺韓科技',        'csv':'00735_data.csv',  'type':'etf'},
     '00830':  {'name':'00830 國泰費城半導體',      'csv':'00830_data.csv',  'type':'etf'},
@@ -438,7 +438,9 @@ footer{{
     <span class="ctrl-label">選擇標的</span>
     <button class="sel-all-btn" id="btn-select-all">全選</button>
     <button class="sel-all-btn" id="btn-select-etf">ETF</button>
-    <button class="sel-all-btn" id="btn-select-leveraged">正二</button>
+    <button class="sel-all-btn" id="btn-select-leveraged">台股正二</button>
+    <button class="sel-all-btn" id="btn-select-us-leveraged">美股正二</button>
+    <button class="sel-all-btn" id="btn-select-all-leveraged">全部正二</button>
     <button class="sel-all-btn" id="btn-select-stock">個股</button>
     <div class="etf-checks" id="etf-checks"></div>
   </div>
@@ -733,6 +735,22 @@ function applyTypeFilter(type) {{
 
 document.getElementById('btn-select-etf').addEventListener('click', () => applyTypeFilter('etf'));
 document.getElementById('btn-select-leveraged').addEventListener('click', () => applyTypeFilter('leveraged'));
+document.getElementById('btn-select-us-leveraged').addEventListener('click', () => applyTypeFilter('us_leveraged'));
+document.getElementById('btn-select-all-leveraged').addEventListener('click', () => {{
+  const ids = allETFIds.filter(id => ['leveraged','us_leveraged'].includes(ETF_DB[id].type));
+  if (!ids.length) return;
+  selectedETFs = [...ids];
+  if (!selectedETFs.includes(focusETF)) focusETF = selectedETFs[0];
+  document.querySelectorAll('.etf-check-item').forEach(item => {{
+    const id = item.dataset.id;
+    const cb = item.querySelector('input');
+    const checked = selectedETFs.includes(id);
+    cb.checked = checked;
+    item.classList.toggle('checked', checked);
+  }});
+  syncSelectAllBtn();
+  render();
+}});
 document.getElementById('btn-select-stock').addEventListener('click', () => applyTypeFilter('stock'));
 
 // ════════════════════════════════════════════════════════════════
