@@ -1095,25 +1095,53 @@ function render() {
   updateGroupCurveChart(results);
 
   // ── 結論 ────────────────────────────────────────────────────
-  const best = activeIds.reduce((a,b)=>
+  const best  = activeIds.reduce((a,b)=>
     results[a][bestPerETF[a]].returnPct > results[b][bestPerETF[b]].returnPct ? a : b);
-  const safe = activeIds.reduce((a,b)=>
+  const best2 = activeIds.length > 1
+    ? activeIds.filter(id=>id!==best).reduce((a,b)=>
+        results[a][bestPerETF[a]].returnPct > results[b][bestPerETF[b]].returnPct ? a : b)
+    : null;
+  const safe  = activeIds.reduce((a,b)=>
     results[a][bestPerETF[a]].maxDrawdown > results[b][bestPerETF[b]].maxDrawdown ? a : b);
+  const safe2 = activeIds.length > 1
+    ? activeIds.filter(id=>id!==safe).reduce((a,b)=>
+        results[a][bestPerETF[a]].maxDrawdown > results[b][bestPerETF[b]].maxDrawdown ? a : b)
+    : null;
   // 夏普 / Sortino 最佳（各自獨立篩選，避免 null.toFixed 錯誤）
   const sharpeIds  = activeIds.filter(id => results[id][bestPerETF[id]].sharpe  != null);
   const sortinoIds = activeIds.filter(id => results[id][bestPerETF[id]].sortino != null);
   const sharp   = sharpeIds.length
     ? sharpeIds.reduce((a,b)=>  results[a][bestPerETF[a]].sharpe  > results[b][bestPerETF[b]].sharpe  ? a : b)
     : null;
+  const sharp2  = sharpeIds.length > 1 && sharp
+    ? sharpeIds.filter(id=>id!==sharp).reduce((a,b)=>
+        results[a][bestPerETF[a]].sharpe > results[b][bestPerETF[b]].sharpe ? a : b)
+    : null;
   const sortino = sortinoIds.length
     ? sortinoIds.reduce((a,b)=> results[a][bestPerETF[a]].sortino > results[b][bestPerETF[b]].sortino ? a : b)
     : null;
-  const bestR    = results[best][bestPerETF[best]];
-  const safeR    = results[safe][bestPerETF[safe]];
-  const sharpR   = sharp   ? results[sharp][bestPerETF[sharp]]     : null;
-  const sortinoR = sortino ? results[sortino][bestPerETF[sortino]]  : null;
+  const sortino2 = sortinoIds.length > 1 && sortino
+    ? sortinoIds.filter(id=>id!==sortino).reduce((a,b)=>
+        results[a][bestPerETF[a]].sortino > results[b][bestPerETF[b]].sortino ? a : b)
+    : null;
+  const bestR     = results[best][bestPerETF[best]];
+  const best2R    = best2  ? results[best2][bestPerETF[best2]]       : null;
+  const safeR     = results[safe][bestPerETF[safe]];
+  const safe2R    = safe2  ? results[safe2][bestPerETF[safe2]]       : null;
+  const sharpR    = sharp   ? results[sharp][bestPerETF[sharp]]      : null;
+  const sharp2R   = sharp2  ? results[sharp2][bestPerETF[sharp2]]    : null;
+  const sortinoR  = sortino  ? results[sortino][bestPerETF[sortino]] : null;
+  const sortino2R = sortino2 ? results[sortino2][bestPerETF[sortino2]] : null;
 
   const fmtRisk = r => r != null ? r.toFixed(2) : '—';
+
+  // 次優標籤 helper
+  const runner = (id, r, lines) => id ? `
+    <div style="margin-top:.7rem;padding-top:.6rem;border-top:1px solid var(--border);opacity:.82">
+      <p style="font-size:.74rem;color:var(--muted);margin-bottom:.2rem">🥈 次優　<span class="hl" style="font-size:.82rem">${ETF_DB[id].name}</span>
+        <span style="font-size:.72rem;color:var(--muted);margin-left:.3rem">${DAYS_LABEL[bestPerETF[id]]}</span></p>
+      <ul style="font-size:.78rem;color:var(--muted)">${lines}</ul>
+    </div>` : '';
 
   document.getElementById('conclusion').innerHTML = [
     {
@@ -1127,7 +1155,8 @@ function render() {
            <li>總獲益：NT$ ${FMT(bestR.finalValue - bestR.totalCost)}</li>
            <li>最終市值：NT$ ${FMT(bestR.finalValue)}</li>
            <li style="margin-top:.3rem">波動率：${fmtRisk(bestR.vol)}%　夏普：${fmtRisk(bestR.sharpe)}　Sortino：${fmtRisk(bestR.sortino)}</li>
-         </ul>`
+         </ul>
+         ${runner(best2, best2R, best2R ? `<li>總報酬：<span class="${best2R.returnPct>=0?'gr':'rd'}">${FMTP(best2R.returnPct)}</span>　年化：${FMTP(best2R.cagr)}</li><li>最終市值：NT$ ${FMT(best2R.finalValue)}</li>` : '')}`
     },
     {
       t:'🛡️ 最低回撤標的',
@@ -1137,7 +1166,8 @@ function render() {
            <li>最大回撤：<span class="hl">${safeR.maxDrawdown.toFixed(2)}%</span></li>
            <li>年化報酬：${FMTP(safeR.cagr)}</li>
            <li style="margin-top:.3rem">波動率：${fmtRisk(safeR.vol)}%　夏普：${fmtRisk(safeR.sharpe)}　Sortino：${fmtRisk(safeR.sortino)}</li>
-         </ul>`
+         </ul>
+         ${runner(safe2, safe2R, safe2R ? `<li>最大回撤：<span class="rd">${safe2R.maxDrawdown.toFixed(2)}%</span>　年化：${FMTP(safe2R.cagr)}</li>` : '')}`
     },
     ...(sharpR ? [{
       t:'⚡ 最佳夏普標的',
@@ -1149,7 +1179,8 @@ function render() {
            <li>波動率：${fmtRisk(sharpR.vol)}%</li>
            <li>年化報酬：${FMTP(sharpR.cagr)}</li>
            <li style="font-size:.78rem;color:var(--muted);margin-top:.3rem">無風險利率 ${RF}%（台灣1年期定存）</li>
-         </ul>`
+         </ul>
+         ${runner(sharp2, sharp2R, sharp2R ? `<li>夏普：${sharp2R.sharpe.toFixed(2)}　Sortino：${fmtRisk(sharp2R.sortino)}　年化：${FMTP(sharp2R.cagr)}</li>` : '')}`
     }] : []),
     ...(sortinoR ? [{
       t:'🎯 最佳Sortino標的',
@@ -1161,7 +1192,8 @@ function render() {
            <li>波動率：${fmtRisk(sortinoR.vol)}%</li>
            <li>年化報酬：${FMTP(sortinoR.cagr)}</li>
            <li style="font-size:.78rem;color:var(--muted);margin-top:.3rem">Sortino 僅計算下行風險，更能反映實際虧損風險</li>
-         </ul>`
+         </ul>
+         ${runner(sortino2, sortino2R, sortino2R ? `<li>Sortino：${sortino2R.sortino.toFixed(2)}　夏普：${fmtRisk(sortino2R.sharpe)}　年化：${FMTP(sortino2R.cagr)}</li>` : '')}`
     }] : []),
     {
       t:'📅 扣款日效應',
