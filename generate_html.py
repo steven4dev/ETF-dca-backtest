@@ -1281,14 +1281,18 @@ function render() {{
     results[a][bestPerETF[a]].returnPct > results[b][bestPerETF[b]].returnPct ? a : b);
   const safe = activeIds.reduce((a,b)=>
     results[a][bestPerETF[a]].maxDrawdown > results[b][bestPerETF[b]].maxDrawdown ? a : b);
-  // 夏普最佳（排除夏普為 null 的）
-  const sharpeIds = activeIds.filter(id => results[id][bestPerETF[id]].sharpe != null);
-  const sharp = sharpeIds.length
-    ? sharpeIds.reduce((a,b)=> results[a][bestPerETF[a]].sharpe > results[b][bestPerETF[b]].sharpe ? a : b)
+  // 夏普 / Sortino 最佳（排除 null）
+  const riskIds = activeIds.filter(id => results[id][bestPerETF[id]].sharpe != null);
+  const sharp   = riskIds.length
+    ? riskIds.reduce((a,b)=> results[a][bestPerETF[a]].sharpe  > results[b][bestPerETF[b]].sharpe  ? a : b)
     : null;
-  const bestR  = results[best][bestPerETF[best]];
-  const safeR  = results[safe][bestPerETF[safe]];
-  const sharpR = sharp ? results[sharp][bestPerETF[sharp]] : null;
+  const sortino = riskIds.length
+    ? riskIds.reduce((a,b)=> results[a][bestPerETF[a]].sortino > results[b][bestPerETF[b]].sortino ? a : b)
+    : null;
+  const bestR    = results[best][bestPerETF[best]];
+  const safeR    = results[safe][bestPerETF[safe]];
+  const sharpR   = sharp   ? results[sharp][bestPerETF[sharp]]     : null;
+  const sortinoR = sortino ? results[sortino][bestPerETF[sortino]]  : null;
 
   const fmtRisk = r => r != null ? r.toFixed(2) : '—';
 
@@ -1326,6 +1330,18 @@ function render() {{
            <li>波動率：${{fmtRisk(sharpR.vol)}}%</li>
            <li>年化報酬：${{FMTP(sharpR.cagr)}}</li>
            <li style="font-size:.78rem;color:var(--muted);margin-top:.3rem">無風險利率 ${{RF}}%（台灣1年期定存）</li>
+         </ul>`
+    }}] : []),
+    ...(sortinoR ? [{{
+      t:'🎯 最佳Sortino標的',
+      h:`<p>標的：<span class="hl">${{ETF_DB[sortino].name}}</span></p>
+         <p style="margin-top:.3rem">最佳扣款組合：<span class="hl">${{bestPerETF[sortino]}}（${{DAYS_LABEL[bestPerETF[sortino]]}}）</span></p>
+         <ul style="margin-top:.5rem">
+           <li>Sortino Ratio：<span class="hl">${{sortinoR.sortino.toFixed(2)}}</span></li>
+           <li>夏普比率：${{fmtRisk(sortinoR.sharpe)}}</li>
+           <li>波動率：${{fmtRisk(sortinoR.vol)}}%</li>
+           <li>年化報酬：${{FMTP(sortinoR.cagr)}}</li>
+           <li style="font-size:.78rem;color:var(--muted);margin-top:.3rem">Sortino 僅計算下行風險，更能反映實際虧損風險</li>
          </ul>`
     }}] : []),
     {{
