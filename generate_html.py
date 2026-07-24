@@ -1281,13 +1281,14 @@ function render() {{
     results[a][bestPerETF[a]].returnPct > results[b][bestPerETF[b]].returnPct ? a : b);
   const safe = activeIds.reduce((a,b)=>
     results[a][bestPerETF[a]].maxDrawdown > results[b][bestPerETF[b]].maxDrawdown ? a : b);
-  // 夏普 / Sortino 最佳（排除 null）
-  const riskIds = activeIds.filter(id => results[id][bestPerETF[id]].sharpe != null);
-  const sharp   = riskIds.length
-    ? riskIds.reduce((a,b)=> results[a][bestPerETF[a]].sharpe  > results[b][bestPerETF[b]].sharpe  ? a : b)
+  // 夏普 / Sortino 最佳（各自獨立篩選，避免 null.toFixed 錯誤）
+  const sharpeIds  = activeIds.filter(id => results[id][bestPerETF[id]].sharpe  != null);
+  const sortinoIds = activeIds.filter(id => results[id][bestPerETF[id]].sortino != null);
+  const sharp   = sharpeIds.length
+    ? sharpeIds.reduce((a,b)=>  results[a][bestPerETF[a]].sharpe  > results[b][bestPerETF[b]].sharpe  ? a : b)
     : null;
-  const sortino = riskIds.length
-    ? riskIds.reduce((a,b)=> results[a][bestPerETF[a]].sortino > results[b][bestPerETF[b]].sortino ? a : b)
+  const sortino = sortinoIds.length
+    ? sortinoIds.reduce((a,b)=> results[a][bestPerETF[a]].sortino > results[b][bestPerETF[b]].sortino ? a : b)
     : null;
   const bestR    = results[best][bestPerETF[best]];
   const safeR    = results[safe][bestPerETF[safe]];
