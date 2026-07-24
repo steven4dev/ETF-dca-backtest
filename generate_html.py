@@ -448,11 +448,11 @@ footer{{
   <div class="ctrl-group">
     <span class="ctrl-label">回測期間</span>
     <div class="year-btns" id="year-btns">
-      <button class="year-btn active" data-y="0.0833">1 月</button>
+      <button class="year-btn" data-y="0.0833">1 月</button>
       <button class="year-btn" data-y="0.1667">2 月</button>
       <button class="year-btn" data-y="0.25">3 月</button>
       <button class="year-btn" data-y="0.5">6 月</button>
-      <button class="year-btn" data-y="1">1 年</button>
+      <button class="year-btn active" data-y="1">1 年</button>
       <button class="year-btn" data-y="2">2 年</button>
       <button class="year-btn" data-y="3">3 年</button>
       <button class="year-btn" data-y="5">5 年</button>
@@ -571,8 +571,8 @@ const FMTP = n => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
 const WFMT = v => Math.abs(v) >= 1e8 ? (v/1e8).toFixed(2)+'億' : (v/1e4).toFixed(1)+'萬';
 
 // ── 狀態 ──────────────────────────────────────────────────────────
-let selectedETFs  = Object.keys(ETF_DB);
-let currentYears  = 0.0833;
+let selectedETFs  = Object.keys(ETF_DB).filter(id => ETF_DB[id].type === 'etf');
+let currentYears  = 1;
 let currentTotal  = 1000000;
 let currentAmt    = 10000;
 let investMode     = 'dca';   // 'dca'=定期定額  |  'lump'=單筆投入
@@ -1568,8 +1568,9 @@ function renderLayoutTable() {{
   document.getElementById('layout-wrap').innerHTML = html;
 }}
 
-// 首次渲染
+// 首次渲染（預設：1年 + ETF）
 calcPerTrade();
+document.getElementById('btn-select-etf').classList.add('active');
 render(); // render() 末尾會呼叫 renderLayoutTable()
 </script>
 </body>
