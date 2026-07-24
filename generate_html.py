@@ -489,7 +489,7 @@ footer{{
       <thead><tr>
         <th>標的</th><th>組合</th><th>扣款日</th><th>交易次數</th>
         <th>總投入</th><th>持股數</th><th>平均成本</th>
-        <th>最終市值</th><th>報酬率</th><th>年化報酬</th><th>最大回撤</th>
+        <th>最終市值</th><th>報酬率</th><th>年化報酬</th><th>最大回撤</th><th>波動率</th><th>夏普比率</th><th>Sortino</th>
       </tr></thead>
       <tbody id="table-body"></tbody>
     </table></div>
@@ -609,7 +609,8 @@ function calcLumpSum(daily, finalPrice, totalAmount, actualYears) {{
     const dd = peakRet > -100 ? (ret - peakRet) / (1 + peakRet / 100) : 0;
     if (dd < maxDD) maxDD = dd;
   }}
-  return {{ buyDate, buyPrice, shares, finalValue, returnPct, cagr, maxDrawdown: maxDD, totalCost: totalAmount }};
+  const {{ vol, sharpe, sortino }} = calcRiskMetrics(daily, cagr);
+  return {{ buyDate, buyPrice, shares, finalValue, returnPct, cagr, maxDrawdown: maxDD, totalCost: totalAmount, vol, sharpe, sortino }};
 }}
 
 // ── 切換投資策略 ─────────────────────────────────────────────────
@@ -771,6 +772,30 @@ function sliceETF(etfId, years) {{
 }}
 
 // ════════════════════════════════════════════════════════════════
+//  風險指標（以標的本身日報酬率計算）
+// ════════════════════════════════════════════════════════════════
+const RF = 1.5; // 無風險利率（台灣1年期定存 %）
+
+function calcRiskMetrics(daily, cagr) {{
+  if (daily.length < 60) return {{ vol: null, sharpe: null, sortino: null }};
+  const rets = [];
+  for (let i = 1; i < daily.length; i++) {{
+    if (daily[i-1].p > 0) rets.push(Math.log(daily[i].p / daily[i-1].p) * 100);
+  }}
+  if (rets.length < 20) return {{ vol: null, sharpe: null, sortino: null }};
+  const mean = rets.reduce((a,b) => a+b, 0) / rets.length;
+  const variance = rets.reduce((a,b) => a + (b-mean)**2, 0) / rets.length;
+  const vol = Math.sqrt(variance * 252);
+  const downRets = rets.filter(r => r < 0);
+  const downVariance = downRets.length > 0
+    ? downRets.reduce((a,b) => a + b*b, 0) / downRets.length : 0;
+  const downVol = Math.sqrt(downVariance * 252);
+  const sharpe  = vol     > 0 ? (cagr - RF) / vol     : null;
+  const sortino = downVol > 0 ? (cagr - RF) / downVol : null;
+  return {{ vol, sharpe, sortino }};
+}}
+
+// ════════════════════════════════════════════════════════════════
 //  DCA 計算
 // ════════════════════════════════════════════════════════════════
 function runDCA(schedule, daily, finalPrice, amtPerTrade, actualYears) {{
@@ -803,8 +828,9 @@ function runDCA(schedule, daily, finalPrice, amtPerTrade, actualYears) {{
   }}
   const trades = schedule.reduce((s,t)=>s+t.n, 0);
   const avgCost = cumShares > 0 ? totalCost/cumShares : 0;
+  const {{ vol, sharpe, sortino }} = calcRiskMetrics(daily, cagr);
   return {{ trades, totalCost, shares: cumShares, avgCost, finalValue,
-            returnPct, cagr, maxDrawdown: maxDD, mv, cc }};
+            returnPct, cagr, maxDrawdown: maxDD, mv, cc, vol, sharpe, sortino }};
 }}
 
 // ════════════════════════════════════════════════════════════════
@@ -959,6 +985,9 @@ function renderLumpTableCharts(lumpRes, activeIds, dcaResults, dcaBestPerETF) {{
       '<td style="' + rc + ';font-weight:700">' + FMTP(r.returnPct) + vs + '</td>' +
       '<td style="' + cc + '">' + FMTP(r.cagr) + '</td>' +
       '<td style="color:var(--red)">' + r.maxDrawdown.toFixed(2) + '%</td>' +
+      '<td style="color:var(--muted)">' + (r.vol    != null ? r.vol.toFixed(2)+'%'    : '—') + '</td>' +
+      '<td style="' + (r.sharpe  != null && r.sharpe  >= 0 ? 'color:var(--green)' : 'color:var(--red)') + '">' + (r.sharpe  != null ? r.sharpe.toFixed(2)  : '—') + '</td>' +
+      '<td style="' + (r.sortino != null && r.sortino >= 0 ? 'color:var(--green)' : 'color:var(--red)') + '">' + (r.sortino != null ? r.sortino.toFixed(2) : '—') + '</td>' +
       '</tr>';
   }}).join('');
 
@@ -1002,6 +1031,9 @@ function renderLumpTableCharts(lumpRes, activeIds, dcaResults, dcaBestPerETF) {{
         <span>總投入：<b>NT$ ${{FMT(r.totalCost)}}</b></span>
         <span>總獲益：<b style="color:${{rc}}">NT$ ${{FMT(profit)}}</b></span>
         <span>最終市值：<b>NT$ ${{FMT(r.finalValue)}}</b></span>
+        <span>波動率：<b style="color:var(--muted)">${{r.vol    != null ? r.vol.toFixed(2)+'%'   : '—'}}</b></span>
+        <span>夏普比率：<b style="color:${{r.sharpe  != null && r.sharpe  >= 0 ? 'var(--green)' : 'var(--red)'}}">${{r.sharpe  != null ? r.sharpe.toFixed(2)  : '—'}}</b></span>
+        <span>Sortino：<b style="color:${{r.sortino != null && r.sortino >= 0 ? 'var(--green)' : 'var(--red)'}}">${{r.sortino != null ? r.sortino.toFixed(2) : '—'}}</b></span>
       </div>
     </div>`;
   }}).join('');
@@ -1120,6 +1152,9 @@ function render() {{
         <td style="${{rc}};font-weight:700">${{FMTP(r.returnPct)}}</td>
         <td style="${{cc}}">${{FMTP(r.cagr)}}</td>
         <td style="color:var(--red)">${{r.maxDrawdown.toFixed(2)}}%</td>
+        <td style="color:var(--muted)">${{r.vol    != null ? r.vol.toFixed(2)+'%'    : '—'}}</td>
+        <td style="${{r.sharpe  != null && r.sharpe  >= 0 ? 'color:var(--green)' : 'color:var(--red)'}}">${{r.sharpe  != null ? r.sharpe.toFixed(2)  : '—'}}</td>
+        <td style="${{r.sortino != null && r.sortino >= 0 ? 'color:var(--green)' : 'color:var(--red)'}}">${{r.sortino != null ? r.sortino.toFixed(2) : '—'}}</td>
       </tr>`);
     }});
   }}
@@ -1246,8 +1281,16 @@ function render() {{
     results[a][bestPerETF[a]].returnPct > results[b][bestPerETF[b]].returnPct ? a : b);
   const safe = activeIds.reduce((a,b)=>
     results[a][bestPerETF[a]].maxDrawdown > results[b][bestPerETF[b]].maxDrawdown ? a : b);
-  const bestR = results[best][bestPerETF[best]];
-  const safeR = results[safe][bestPerETF[safe]];
+  // 夏普最佳（排除夏普為 null 的）
+  const sharpeIds = activeIds.filter(id => results[id][bestPerETF[id]].sharpe != null);
+  const sharp = sharpeIds.length
+    ? sharpeIds.reduce((a,b)=> results[a][bestPerETF[a]].sharpe > results[b][bestPerETF[b]].sharpe ? a : b)
+    : null;
+  const bestR  = results[best][bestPerETF[best]];
+  const safeR  = results[safe][bestPerETF[safe]];
+  const sharpR = sharp ? results[sharp][bestPerETF[sharp]] : null;
+
+  const fmtRisk = r => r != null ? r.toFixed(2) : '—';
 
   document.getElementById('conclusion').innerHTML = [
     {{
@@ -1260,6 +1303,7 @@ function render() {{
            <li>總投入：NT$ ${{FMT(bestR.totalCost)}}</li>
            <li>總獲益：NT$ ${{FMT(bestR.finalValue - bestR.totalCost)}}</li>
            <li>最終市值：NT$ ${{FMT(bestR.finalValue)}}</li>
+           <li style="margin-top:.3rem">波動率：${{fmtRisk(bestR.vol)}}%　夏普：${{fmtRisk(bestR.sharpe)}}　Sortino：${{fmtRisk(bestR.sortino)}}</li>
          </ul>`
     }},
     {{
@@ -1269,8 +1313,21 @@ function render() {{
          <ul style="margin-top:.5rem">
            <li>最大回撤：<span class="hl">${{safeR.maxDrawdown.toFixed(2)}}%</span></li>
            <li>年化報酬：${{FMTP(safeR.cagr)}}</li>
+           <li style="margin-top:.3rem">波動率：${{fmtRisk(safeR.vol)}}%　夏普：${{fmtRisk(safeR.sharpe)}}　Sortino：${{fmtRisk(safeR.sortino)}}</li>
          </ul>`
     }},
+    ...(sharpR ? [{{
+      t:'⚡ 最佳夏普標的',
+      h:`<p>標的：<span class="hl">${{ETF_DB[sharp].name}}</span></p>
+         <p style="margin-top:.3rem">最佳扣款組合：<span class="hl">${{bestPerETF[sharp]}}（${{DAYS_LABEL[bestPerETF[sharp]]}}）</span></p>
+         <ul style="margin-top:.5rem">
+           <li>夏普比率：<span class="hl">${{sharpR.sharpe.toFixed(2)}}</span></li>
+           <li>Sortino：${{fmtRisk(sharpR.sortino)}}</li>
+           <li>波動率：${{fmtRisk(sharpR.vol)}}%</li>
+           <li>年化報酬：${{FMTP(sharpR.cagr)}}</li>
+           <li style="font-size:.78rem;color:var(--muted);margin-top:.3rem">無風險利率 ${{RF}}%（台灣1年期定存）</li>
+         </ul>`
+    }}] : []),
     {{
       t:'📅 扣款日效應',
       h:`<ul>
