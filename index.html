@@ -1156,7 +1156,13 @@ function render() {
            <li>最終市值：NT$ ${FMT(bestR.finalValue)}</li>
            <li style="margin-top:.3rem">波動率：${fmtRisk(bestR.vol)}%　夏普：${fmtRisk(bestR.sharpe)}　Sortino：${fmtRisk(bestR.sortino)}</li>
          </ul>
-         ${runner(best2, best2R, best2R ? `<li>總報酬：<span class="${best2R.returnPct>=0?'gr':'rd'}">${FMTP(best2R.returnPct)}</span>　年化：${FMTP(best2R.cagr)}</li><li>最終市值：NT$ ${FMT(best2R.finalValue)}</li>` : '')}`
+         ${runner(best2, best2R, best2R ? `
+           <li>總報酬：<span class="${best2R.returnPct>=0?'gr':'rd'}">${FMTP(best2R.returnPct)}</span></li>
+           <li>年化報酬：<span class="${best2R.cagr>=0?'gr':'rd'}">${FMTP(best2R.cagr)}</span></li>
+           <li>總投入：NT$ ${FMT(best2R.totalCost)}</li>
+           <li>總獲益：NT$ ${FMT(best2R.finalValue - best2R.totalCost)}</li>
+           <li>最終市值：NT$ ${FMT(best2R.finalValue)}</li>
+           <li style="margin-top:.3rem">波動率：${fmtRisk(best2R.vol)}%　夏普：${fmtRisk(best2R.sharpe)}　Sortino：${fmtRisk(best2R.sortino)}</li>` : '')}`
     },
     {
       t:'🛡️ 最低回撤標的',
@@ -1167,7 +1173,10 @@ function render() {
            <li>年化報酬：${FMTP(safeR.cagr)}</li>
            <li style="margin-top:.3rem">波動率：${fmtRisk(safeR.vol)}%　夏普：${fmtRisk(safeR.sharpe)}　Sortino：${fmtRisk(safeR.sortino)}</li>
          </ul>
-         ${runner(safe2, safe2R, safe2R ? `<li>最大回撤：<span class="rd">${safe2R.maxDrawdown.toFixed(2)}%</span>　年化：${FMTP(safe2R.cagr)}</li>` : '')}`
+         ${runner(safe2, safe2R, safe2R ? `
+           <li>最大回撤：<span class="rd">${safe2R.maxDrawdown.toFixed(2)}%</span></li>
+           <li>年化報酬：${FMTP(safe2R.cagr)}</li>
+           <li style="margin-top:.3rem">波動率：${fmtRisk(safe2R.vol)}%　夏普：${fmtRisk(safe2R.sharpe)}　Sortino：${fmtRisk(safe2R.sortino)}</li>` : '')}`
     },
     ...(sharpR ? [{
       t:'⚡ 最佳夏普標的',
@@ -1180,7 +1189,11 @@ function render() {
            <li>年化報酬：${FMTP(sharpR.cagr)}</li>
            <li style="font-size:.78rem;color:var(--muted);margin-top:.3rem">無風險利率 ${RF}%（台灣1年期定存）</li>
          </ul>
-         ${runner(sharp2, sharp2R, sharp2R ? `<li>夏普：${sharp2R.sharpe.toFixed(2)}　Sortino：${fmtRisk(sharp2R.sortino)}　年化：${FMTP(sharp2R.cagr)}</li>` : '')}`
+         ${runner(sharp2, sharp2R, sharp2R ? `
+           <li>夏普比率：${sharp2R.sharpe.toFixed(2)}</li>
+           <li>Sortino：${fmtRisk(sharp2R.sortino)}</li>
+           <li>波動率：${fmtRisk(sharp2R.vol)}%</li>
+           <li>年化報酬：${FMTP(sharp2R.cagr)}</li>` : '')}`
     }] : []),
     ...(sortinoR ? [{
       t:'🎯 最佳Sortino標的',
@@ -1193,7 +1206,11 @@ function render() {
            <li>年化報酬：${FMTP(sortinoR.cagr)}</li>
            <li style="font-size:.78rem;color:var(--muted);margin-top:.3rem">Sortino 僅計算下行風險，更能反映實際虧損風險</li>
          </ul>
-         ${runner(sortino2, sortino2R, sortino2R ? `<li>Sortino：${sortino2R.sortino.toFixed(2)}　夏普：${fmtRisk(sortino2R.sharpe)}　年化：${FMTP(sortino2R.cagr)}</li>` : '')}`
+         ${runner(sortino2, sortino2R, sortino2R ? `
+           <li>Sortino Ratio：${sortino2R.sortino.toFixed(2)}</li>
+           <li>夏普比率：${fmtRisk(sortino2R.sharpe)}</li>
+           <li>波動率：${fmtRisk(sortino2R.vol)}%</li>
+           <li>年化報酬：${FMTP(sortino2R.cagr)}</li>` : '')}`
     }] : []),
     {
       t:'📅 扣款日效應',
