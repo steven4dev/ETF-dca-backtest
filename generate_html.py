@@ -22,6 +22,7 @@ class NpEncoder(json.JSONEncoder):
 ETF_CONFIG = {
     '0050':   {'name':'0050 元大台灣50',          'csv':'0050_data.csv',   'type':'etf'},
     '0052':   {'name':'0052 富邦科技',             'csv':'0052_data.csv',   'type':'etf'},
+    '0053':   {'name':'0053 元大電子',             'csv':'0053_data.csv',   'type':'etf'},
     '00631L': {'name':'00631L 元大台灣50正2',      'csv':'00631L_data.csv', 'type':'leveraged'},
     '00647L': {'name':'00647L 元大S&P500正2',      'csv':'00647L_data.csv', 'type':'us_leveraged'},
     '00663L': {'name':'00663L 國泰臺灣加權正2',    'csv':'00663L_data.csv', 'type':'leveraged'},
@@ -550,6 +551,7 @@ const GNAMES     = {gnames_json};
 const ETF_COLORS = {{
   '0050':   '#4f8ef7',
   '0052':   '#22c55e',
+  '0053':   '#a78bfa',
   '00631L': '#ef4444',
   '00685L': '#f97316',
   '009813': '#f59e0b',
