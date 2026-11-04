@@ -18,11 +18,10 @@ class NpEncoder(json.JSONEncoder):
         return super().default(obj)
 
 # ── ETF 設定表 ────────────────────────────────────────────────────
-# split_date / split_ratio 已移除：由 load_etf() 自動偵測並補正
 ETF_CONFIG = {
     '0050':   {'name':'0050 元大台灣50',          'csv':'0050_data.csv',   'type':'etf'},
     '0052':   {'name':'0052 富邦科技',             'csv':'0052_data.csv',   'type':'etf'},
-    '0053':   {'name':'0053 元大電子',             'csv':'0053_data.csv',   'type':'etf'},
+    '0053':   {'name':'0053 元大科技市值',             'csv':'0053_data.csv',   'type':'etf'},
     '00631L': {'name':'00631L 元大台灣50正2',      'csv':'00631L_data.csv', 'type':'leveraged'},
     '00647L': {'name':'00647L 元大S&P500正2',      'csv':'00647L_data.csv', 'type':'us_leveraged'},
     '00663L': {'name':'00663L 國泰臺灣加權正2',    'csv':'00663L_data.csv', 'type':'leveraged'},
@@ -31,15 +30,15 @@ ETF_CONFIG = {
     '00685L': {'name':'00685L 群益臺灣加權正2',    'csv':'00685L_data.csv', 'type':'leveraged'},
     'SSO':    {'name':'SSO ProShares S&P500正2',   'csv':'SSO_data.csv',    'type':'us_leveraged'},
     'QLD':    {'name':'QLD ProShares NASDAQ正2',   'csv':'QLD_data.csv',    'type':'us_leveraged'},
-    '009813': {'name':'009813 街口布局全球',       'csv':'009813_data.csv', 'type':'etf'},
+    '009813': {'name':'009813 貝萊德標普卓越50',       'csv':'009813_data.csv', 'type':'etf'},
     '00735':  {'name':'00735 國泰臺韓科技',        'csv':'00735_data.csv',  'type':'etf'},
     '00830':  {'name':'00830 國泰費城半導體',      'csv':'00830_data.csv',  'type':'etf'},
-    '00770':  {'name':'00770 富邦台灣加權',        'csv':'00770_data.csv',  'type':'etf'},
-    '009810': {'name':'009810 街口ESG永續',        'csv':'009810_data.csv', 'type':'etf'},
+    '00770':  {'name':'00770 國泰北美科技',        'csv':'00770_data.csv',  'type':'etf'},
+    '009810': {'name':'009810 玉山全球藍籌100',        'csv':'009810_data.csv', 'type':'etf'},
     '00935':  {'name':'00935 野村臺灣新科技50',    'csv':'00935_data.csv',  'type':'etf'},
-    '00981A': {'name':'00981A 國泰優選收益',       'csv':'00981A_data.csv', 'type':'etf'},
-    '00988A': {'name':'00988A 野村優息存股A',      'csv':'00988A_data.csv', 'type':'etf'},
-    '00992A': {'name':'00992A 群益台灣科技創新',   'csv':'00992A_data.csv', 'type':'etf'},
+    '00981A': {'name':'00981A 主動統一台股增長',       'csv':'00981A_data.csv', 'type':'etf'},
+    '00988A': {'name':'00988A 主動統一全球創新',      'csv':'00988A_data.csv', 'type':'etf'},
+    '00992A': {'name':'00992A 主動群益科技創新',   'csv':'00992A_data.csv', 'type':'etf'},
     '2330':   {'name':'2330 台積電',              'csv':'2330_data.csv',   'type':'stock'},
     '2308':   {'name':'2308 台達電',              'csv':'2308_data.csv',   'type':'stock'},
     '2454':   {'name':'2454 聯發科',              'csv':'2454_data.csv',   'type':'stock'},
@@ -64,8 +63,7 @@ DAYS_LABEL = {
 # 格式：{ etf_id: [{'before': 'YYYY-MM-DD', 'ratio': N}, ...] }
 # before：第一個已調整日期（該日之前的歷史價格需除以 ratio）
 KNOWN_SPLITS = {
-    # 00685L 1拆24（2026-07-07恢復交易）：Yahoo Finance 已回溯調整所有歷史價格，不需手動修正
-    '0052': [{'before': '2025-11-17', 'ratio': 7}],  # 1拆7，2025-11-17首日新價，Yahoo未回溯調整
+    '0052': [{'before': '2025-11-17', 'ratio': 7}],  # 官方1拆7；Yahoo 僅調整 11-17 之後
 }
 
 # ── 各 ETF 資料處理 ───────────────────────────────────────────────
@@ -97,18 +95,14 @@ def load_etf(cfg):
     df = pd.read_csv(cfg['csv'])
     df['Date'] = pd.to_datetime(df['Date'])
 
+    # Volume=0 是 Yahoo 在停牌/休市日補的假資料，當日實際無法成交
+    if 'Volume' in df.columns:
+        df = df[pd.to_numeric(df['Volume'], errors='coerce').fillna(0) != 0]
+
     # 優先使用 Adj Close（含配息還原），否則用 Close
     col = 'Adj Close' if 'Adj Close' in df.columns else 'Close'
     df['Close'] = pd.to_numeric(df[col], errors='coerce')
     df = df.dropna(subset=['Close']).sort_values('Date').reset_index(drop=True)
-
-    # 過濾停牌假佔位資料：Volume=0 且 OHLC 四值完全相同
-    if 'Volume' in df.columns and 'Open' in df.columns:
-        placeholder = (
-            (pd.to_numeric(df['Volume'], errors='coerce').fillna(0) == 0) &
-            (df['Open'].astype(str) == df['Close'].astype(str))
-        )
-        df = df[~placeholder].reset_index(drop=True)
 
     # 已知分割：以官方比例手動補正（優先於 auto_fix_splits）
     etf_id = cfg.get('id', '')
@@ -123,61 +117,45 @@ def load_etf(cfg):
 
     return df
 
-def build_schedules(df):
-    trading_dates = pd.DatetimeIndex(df['Date'].values)
-    close_map     = dict(zip(df['Date'].dt.strftime('%Y-%m-%d'), df['Close'].round(4)))
-    latest        = df['Date'].max()
-    earliest      = df['Date'].min()
-
-    all_sched = {}
-    for gname, days in GROUPS.items():
-        trades = {}
-        cur = earliest.replace(day=1)
-        while cur <= latest:
-            for day in days:
-                try:    target = cur.replace(day=day)
-                except: continue
-                if target < earliest or target > latest: continue
-                idx = trading_dates.searchsorted(target)
-                if idx >= len(trading_dates): continue
-                actual = trading_dates[idx]
-                dstr   = actual.strftime('%Y-%m-%d')
-                price  = round(float(close_map[dstr]), 4)
-                if dstr in trades: trades[dstr]['n'] += 1
-                else:              trades[dstr] = {'d': dstr, 'p': price, 'n': 1}
-            cur = cur.replace(month=cur.month % 12 + 1,
-                              year=cur.year + (1 if cur.month == 12 else 0))
-        all_sched[gname] = sorted(trades.values(), key=lambda x: x['d'])
-    return all_sched
-
 # ── 載入所有 ETF ──────────────────────────────────────────────────
 etf_js = {}   # 輸出給 JS 的大 dict
+data_warnings = []
 
 for etf_id, cfg in ETF_CONFIG.items():
     print(f'處理 {etf_id} ...', end=' ')
-    df    = load_etf({**cfg, 'id': etf_id})
-    sched = build_schedules(df)
-    daily = [{'d': row['Date'].strftime('%Y-%m-%d'),
-              'p': round(float(row['Close']), 4)} for _, row in df.iterrows()]
+    df = load_etf({**cfg, 'id': etf_id})
     data_days  = (df['Date'].max() - df['Date'].min()).days
     data_years = round(data_days / 365.25, 2)
+
+    jumps = df[df['Close'].pct_change().abs() > 0.25]
+    jumps = jumps[jumps['Date'] >= df['Date'].max() - pd.Timedelta(days=3660)]
+    for _, row in jumps.iterrows():
+        data_warnings.append(f"{etf_id} {row['Date'].date()} 單日變動超過 25%，請確認是否為未處理的分割")
 
     etf_js[etf_id] = {
         'id':         etf_id,
         'name':       cfg['name'],
         'type':       cfg.get('type', 'etf'),
-        'daily':      daily,
-        'schedules':  sched,
+        'dd':         df['Date'].diff().dt.days.fillna(0).astype(int).tolist(),
+        'px':         df['Close'].round(4).tolist(),
         'finalPrice': round(float(df['Close'].iloc[-1]), 4),
         'dataYears':  data_years,
         'startDate':  df['Date'].min().strftime('%Y-%m-%d'),
         'endDate':    df['Date'].max().strftime('%Y-%m-%d'),
     }
-    print(f'{len(daily)} 筆  {daily[0]["d"]}~{daily[-1]["d"]}  {data_years:.1f}年')
+    print(f"{len(df)} 筆  {etf_js[etf_id]['startDate']}~{etf_js[etf_id]['endDate']}  {data_years:.1f}年")
+
+latest_end = max(e['endDate'] for e in etf_js.values())
+for e in etf_js.values():
+    if (pd.Timestamp(latest_end) - pd.Timestamp(e['endDate'])).days > 5:
+        data_warnings.append(f"{e['id']} 資料只到 {e['endDate']}，落後最新資料 {latest_end}")
+for w in data_warnings:
+    print('⚠', w)
 
 etf_json     = json.dumps(etf_js,      ensure_ascii=False, cls=NpEncoder)
 days_lbl_json = json.dumps(DAYS_LABEL, ensure_ascii=False)
 gnames_json  = json.dumps(list(GROUPS.keys()), ensure_ascii=False)
+groups_json  = json.dumps(GROUPS, ensure_ascii=False)
 
 # ═════════════════════════════════════════════════════════════════
 # HTML
@@ -205,6 +183,13 @@ body.light .year-btn:hover:not(.active),
 body.light .sel-all-btn:hover:not(.active){{background:#e2e8f0;color:var(--text);}}
 body.light .amt-wrap{{background:#f8fafc;}}
 body.light tbody tr:hover{{background:#f1f5f9;}}
+body.light header p{{color:#dbeafe;}}
+body.light .etf-check-item:not(.checked){{background:#fff;}}
+body.light .year-btn:not(.active),
+body.light .sel-all-btn:not(.active),
+body.light .tab-btn:not(.active){{background:#e2e8f0;color:#334155;}}
+body.light .amt-wrap input{{color:var(--text);}}
+body.light thead tr{{background:#e2e8f0;}}
 /* Toast */
 #kb-toast{{
   position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;
@@ -242,7 +227,7 @@ header p{{color:var(--muted);margin-top:.1rem;font-size:.82rem;}}
 .sep{{width:1px;height:18px;background:var(--border);}}
 
 /* ETF 多選 */
-.etf-checks{{display:flex;flex-wrap:wrap;gap:.35rem;}}
+.etf-checks{{display:flex;flex-wrap:wrap;gap:.35rem;flex-basis:100%;}}
 .etf-check-item{{
   display:flex;align-items:center;gap:.28rem;
   background:#1e2133;border:1px solid var(--border);
@@ -306,7 +291,7 @@ header p{{color:var(--muted);margin-top:.1rem;font-size:.82rem;}}
 /* ── Container ── */
 .container{{max-width:1280px;margin:0 auto;padding:1.2rem 1.2rem;}}
 .section-title{{
-  font-size:.95rem;font-weight:600;color:#fff;
+  font-size:.95rem;font-weight:600;color:var(--text);
   margin-bottom:.6rem;padding-bottom:.3rem;
   border-bottom:1px solid var(--border);
   display:flex;align-items:center;gap:.5rem;
@@ -413,6 +398,9 @@ tbody td:first-child,tbody td:nth-child(2){{text-align:left;font-weight:600;}}
 .hl{{color:var(--text)!important;font-weight:600;}}
 .gr{{color:var(--green)!important;}} .rd{{color:var(--red)!important;}}
 
+.mode-lump .dca-only{{display:none;}}
+.data-note{{font-size:.74rem;color:var(--muted);margin:.5rem 0 1rem;line-height:1.5;}}
+
 /* ── No data notice ── */
 .no-data{{
   text-align:center;padding:1.8rem;color:var(--muted);
@@ -430,7 +418,8 @@ footer{{
 
 <header>
   <h1>🇹🇼 台灣 ETF 定期定額回測分析</h1>
-  <p>支援多標的比較・五組扣款日・自訂投入金額・可調回測年數 &nbsp;|&nbsp; 資料來源：Yahoo Finance（調整後收盤價）</p>
+  <p>支援多標的比較・五組扣款日・自訂投入金額・可調回測年數 &nbsp;|&nbsp; 資料來源：Yahoo Finance（調整後收盤價）&nbsp;|&nbsp; <span id="data-date"></span>
+    <button id="btn-theme" class="sel-all-btn" style="margin-left:.4rem">☀️ 亮色</button></p>
 </header>
 
 <!-- 控制列 -->
@@ -467,7 +456,7 @@ footer{{
     <span class="ctrl-label" id="invest-input-lbl">總投入資金</span>
     <div class="amt-wrap">
       <span>NT$</span>
-      <input type="number" id="invest-total" value="1000000" min="1" step="10000">
+      <input type="number" id="invest-total" value="1000000" min="1000" step="10000">
     </div>
     <span class="ctrl-label" id="derived-lbl">≈ 每次投入 <span id="per-trade-lbl" style="color:var(--text);font-weight:700">NT$ 10,000</span></span>
   </div>
@@ -495,35 +484,36 @@ footer{{
       </tr></thead>
       <tbody id="table-body"></tbody>
     </table></div>
+    <p class="data-note">價格採還原權息（股利視為再投入），持股數與平均成本為還原基準，並非實際成交價；未計手續費、交易稅、匯費與追蹤費用。年化報酬：定期定額為 XIRR（資金加權），單筆為 CAGR，未滿一年不年化。波動率、夏普、Sortino 以標的本身日報酬計算（無風險利率 1.5%），各扣款組合相同。</p>
   </div>
 
   <div class="section-title collapsed" data-sec="sec-charts">📈 視覺化比較 <span class="chev">▼</span></div>
   <div class="sec-body collapsed" id="sec-charts">
     <div class="charts-grid">
       <div class="chart-card">
-        <div class="chart-title">各標的最佳組合 總報酬率</div>
+        <div class="chart-title"><span class="best-lbl">各標的最佳組合</span> 總報酬率</div>
         <div class="chart-wrap"><canvas id="chart-best-return"></canvas></div>
       </div>
       <div class="chart-card">
-        <div class="chart-title">各標的最佳組合 年化報酬率（CAGR）</div>
+        <div class="chart-title"><span class="best-lbl">各標的最佳組合</span> 年化報酬率</div>
         <div class="chart-wrap"><canvas id="chart-best-cagr"></canvas></div>
       </div>
       <div class="chart-card full">
-        <div class="chart-title">各標的最佳組合 資產成長曲線</div>
+        <div class="chart-title"><span class="best-lbl">各標的最佳組合</span> 資產成長曲線</div>
         <div class="tab-row" id="best-curve-tabs"></div>
         <div class="chart-wrap tall"><canvas id="chart-curve-best"></canvas></div>
       </div>
-      <div class="chart-card full">
+      <div class="chart-card full dca-only">
         <div class="chart-title">單一標的 · 五組扣款日曲線比較</div>
         <div class="tab-row" id="etf-curve-tabs"></div>
         <div class="tab-row" id="group-curve-tabs"></div>
         <div class="chart-wrap tall"><canvas id="chart-curve-groups"></canvas></div>
       </div>
       <div class="chart-card">
-        <div class="chart-title">各標的最佳組合 最大回撤</div>
+        <div class="chart-title"><span class="best-lbl">各標的最佳組合</span> 最大回撤</div>
         <div class="chart-wrap"><canvas id="chart-best-dd"></canvas></div>
       </div>
-      <div class="chart-card">
+      <div class="chart-card dca-only">
         <div class="chart-title">各標的 五組扣款日報酬率分布</div>
         <div class="chart-wrap"><canvas id="chart-group-dist"></canvas></div>
       </div>
@@ -546,13 +536,29 @@ footer{{
 const ETF_DB     = {etf_json};
 const DAYS_LABEL = {days_lbl_json};
 const GNAMES     = {gnames_json};
+const GROUP_DAYS = {groups_json};
+
+for (const etf of Object.values(ETF_DB)) {{
+  let t = Date.parse(etf.startDate);
+  etf.daily = etf.px.map((p, i) => {{
+    t += etf.dd[i] * 864e5;
+    return {{ d: new Date(t).toISOString().slice(0, 10), p }};
+  }});
+  delete etf.dd; delete etf.px;
+}}
 
 // ETF 顯示顏色
 const ETF_COLORS = {{
   '0050':   '#4f8ef7',
   '0052':   '#22c55e',
-  '0053':   '#a78bfa',
+  '0053':   '#14b8a6',
   '00631L': '#ef4444',
+  '00647L': '#facc15',
+  '00663L': '#ec4899',
+  '00670L': '#84cc16',
+  '00675L': '#dc2626',
+  'SSO':    '#eab308',
+  'QLD':    '#10b981',
   '00685L': '#f97316',
   '009813': '#f59e0b',
   '00735':  '#06b6d4',
@@ -570,7 +576,7 @@ const ETF_COLORS = {{
 const GROUP_COLORS = ['#4f8ef7','#22c55e','#f59e0b','#e879f9','#fb923c'];
 
 const FMT  = n => Math.round(n).toLocaleString('zh-TW');
-const FMTP = n => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+const FMTP = n => n == null ? '—' : (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
 const WFMT = v => Math.abs(v) >= 1e8 ? (v/1e8).toFixed(2)+'億' : (v/1e4).toFixed(1)+'萬';
 
 // ── 狀態 ──────────────────────────────────────────────────────────
@@ -579,6 +585,9 @@ let currentYears  = 1;
 let currentTotal  = 1000000;
 let currentAmt    = 10000;
 let investMode     = 'dca';   // 'dca'=定期定額  |  'lump'=單筆投入
+const shortTag = id => ETF_DB[id].dataYears < currentYears * 0.95
+  ? ` ⚠僅${{ETF_DB[id].dataYears < 1 ? (ETF_DB[id].dataYears * 12).toFixed(0) + '個月' : ETF_DB[id].dataYears.toFixed(1) + '年'}}` : '';
+const nameOf = id => ETF_DB[id].name + shortTag(id);
 let lastResults    = {{}};
 let lastBestPerETF = {{}};
 
@@ -592,28 +601,24 @@ function calcPerTrade() {{
 }}
 
 // ── 單筆投入計算（在選定期間第一天買入，與 DCA 同期比較）─────
-function calcLumpSum(daily, finalPrice, totalAmount, actualYears) {{
+function calcLumpSum(slice, finalPrice, totalAmount) {{
+  const {{ daily, actualYears }} = slice;
   if (!daily.length || totalAmount <= 0) return null;
-  // 期間起點（第一個交易日）
   const buyPrice   = daily[0].p;
   const buyDate    = daily[0].d;
   const shares     = totalAmount / buyPrice;
   const finalValue = shares * finalPrice;
   const returnPct  = (finalValue - totalAmount) / totalAmount * 100;
-  const cagr       = actualYears > 0.1
-    ? (Math.pow(finalValue / totalAmount, 1 / actualYears) - 1) * 100 : 0;
-  // 持有期間最大回撤
-  let peakMV = totalAmount, maxDD = 0;
-  for (let i = 0; i < daily.length; i++) {{
-    const mv = shares * daily[i].p;
-    if (mv > peakMV) peakMV = mv;
-    const peakRet = (peakMV - totalAmount) / totalAmount * 100;
-    const ret     = (mv     - totalAmount) / totalAmount * 100;
-    const dd = peakRet > -100 ? (ret - peakRet) / (1 + peakRet / 100) : 0;
+  const cagr       = actualYears >= MIN_ANNUALIZE_YEARS
+    ? (Math.pow(finalValue / totalAmount, 1 / actualYears) - 1) * 100 : null;
+  let peak = 0, maxDD = 0;
+  for (const day of daily) {{
+    if (day.p > peak) peak = day.p;
+    const dd = (day.p / peak - 1) * 100;
     if (dd < maxDD) maxDD = dd;
   }}
-  const {{ vol, sharpe, sortino }} = calcRiskMetrics(daily, cagr);
-  return {{ buyDate, buyPrice, shares, finalValue, returnPct, cagr, maxDrawdown: maxDD, totalCost: totalAmount, vol, sharpe, sortino }};
+  return {{ buyDate, buyPrice, shares, finalValue, returnPct, cagr, maxDrawdown: maxDD,
+            totalCost: totalAmount, ...calcRiskMetrics(slice) }};
 }}
 
 // ── 切換投資策略 ─────────────────────────────────────────────────
@@ -623,6 +628,10 @@ function syncToggleUI() {{
   }});
   const wrap = document.getElementById('derived-lbl');
   if (wrap) wrap.style.display = investMode === 'lump' ? 'none' : '';
+  document.body.classList.toggle('mode-lump', investMode === 'lump');
+  document.querySelectorAll('.best-lbl').forEach(el => {{
+    el.textContent = investMode === 'lump' ? '各標的單筆投入' : '各標的最佳組合';
+  }});
 }}
 
 function toggleInvestMode() {{
@@ -640,7 +649,7 @@ let focusGroup    = null;     // null = 全部組合
 // ════════════════════════════════════════════════════════════════
 const etfChecksEl = document.getElementById('etf-checks');
 Object.values(ETF_DB)
-  .sort((a, b) => a.id.localeCompare(b.id, undefined, {{numeric: true}}))
+  .sort((a, b) => a.id < b.id ? -1 : 1)
   .forEach(etf => {{
   const item = document.createElement('div');
   item.className = 'etf-check-item' + (selectedETFs.includes(etf.id) ? ' checked' : '');
@@ -670,146 +679,178 @@ Object.values(ETF_DB)
   item.appendChild(lbl);
   etfChecksEl.appendChild(item);
 
-  item.addEventListener('click', e => {{
-    if (e.target !== cb) cb.checked = !cb.checked;
+  cb.addEventListener('change', () => {{
     const id = item.dataset.id;
     if (cb.checked) {{
       if (!selectedETFs.includes(id)) selectedETFs.push(id);
-      item.classList.add('checked');
     }} else {{
-      if (selectedETFs.length <= 1) {{ cb.checked = true; return; }} // 至少保留1個
+      if (selectedETFs.length <= 1) {{ cb.checked = true; showToast('至少保留一檔標的'); return; }}
       selectedETFs = selectedETFs.filter(x => x !== id);
-      item.classList.remove('checked');
     }}
+    item.classList.toggle('checked', cb.checked);
     if (!selectedETFs.includes(focusETF)) focusETF = selectedETFs[0];
     syncSelectAllBtn();
     render();
   }});
+  item.addEventListener('click', e => {{
+    if (e.target !== cb && e.target !== lbl) cb.click();
+  }});
 }});
 
-// ── 全選 / 全取消 ─────────────────────────────────────────────────
+// ── 全選 / 快速篩選 ───────────────────────────────────────────────
 const allETFIds = Object.keys(ETF_DB);
 const btnSelectAll = document.getElementById('btn-select-all');
+const FILTER_BTNS = {{
+  'btn-select-etf':           ['etf'],
+  'btn-select-leveraged':     ['leveraged'],
+  'btn-select-us-leveraged':  ['us_leveraged'],
+  'btn-select-all-leveraged': ['leveraged', 'us_leveraged'],
+  'btn-select-stock':         ['stock'],
+}};
+const idsOfTypes = types => allETFIds.filter(id => types.includes(ETF_DB[id].type));
 
 function syncSelectAllBtn() {{
-  const allChecked = allETFIds.every(id => selectedETFs.includes(id));
+  const allChecked = selectedETFs.length === allETFIds.length;
   btnSelectAll.textContent = allChecked ? '全取消' : '全選';
   btnSelectAll.classList.toggle('active', allChecked);
+  for (const [btnId, types] of Object.entries(FILTER_BTNS)) {{
+    const ids = idsOfTypes(types);
+    const same = ids.length === selectedETFs.length && ids.every(id => selectedETFs.includes(id));
+    document.getElementById(btnId).classList.toggle('active', same);
+  }}
+}}
+
+function applySelection(ids) {{
+  selectedETFs = [...ids];
+  if (!selectedETFs.includes(focusETF)) focusETF = selectedETFs[0];
+  document.querySelectorAll('.etf-check-item').forEach(item => {{
+    const checked = selectedETFs.includes(item.dataset.id);
+    item.querySelector('input').checked = checked;
+    item.classList.toggle('checked', checked);
+  }});
+  syncSelectAllBtn();
+  render();
 }}
 
 btnSelectAll.addEventListener('click', () => {{
-  const allChecked = allETFIds.every(id => selectedETFs.includes(id));
-  if (allChecked) {{
-    // 全取消 → 只保留 0050
-    selectedETFs = ['0050'];
-  }} else {{
-    // 全選
-    selectedETFs = [...allETFIds];
-  }}
-  // 同步 checkbox UI
-  document.querySelectorAll('.etf-check-item').forEach(item => {{
-    const id = item.dataset.id;
-    const cb = item.querySelector('input');
-    const checked = selectedETFs.includes(id);
-    cb.checked = checked;
-    item.classList.toggle('checked', checked);
-  }});
-  if (!selectedETFs.includes(focusETF)) focusETF = selectedETFs[0];
-  syncSelectAllBtn();
-  render();
+  applySelection(selectedETFs.length === allETFIds.length ? ['0050'] : allETFIds);
 }});
+for (const [btnId, types] of Object.entries(FILTER_BTNS)) {{
+  document.getElementById(btnId).addEventListener('click', () => applySelection(idsOfTypes(types)));
+}}
 syncSelectAllBtn();
 
-// ── ETF / 個股 快速篩選 ────────────────────────────────────────
-function applyTypeFilter(type) {{
-  const ids = allETFIds.filter(id => ETF_DB[id].type === type);
-  if (!ids.length) return;
-  selectedETFs = [...ids];
-  if (!selectedETFs.includes(focusETF)) focusETF = selectedETFs[0];
-  document.querySelectorAll('.etf-check-item').forEach(item => {{
-    const id = item.dataset.id;
-    const cb = item.querySelector('input');
-    const checked = selectedETFs.includes(id);
-    cb.checked = checked;
-    item.classList.toggle('checked', checked);
-  }});
-  syncSelectAllBtn();
-  render();
+// ════════════════════════════════════════════════════════════════
+//  扣款日程（目標日遇非交易日順延至下一交易日；多個目標日落在同日則合併）
+// ════════════════════════════════════════════════════════════════
+const scheduleCache = {{}};
+function getSchedules(etf) {{
+  if (scheduleCache[etf.id]) return scheduleCache[etf.id];
+  const daily = etf.daily;
+  const first = daily[0].d, last = daily[daily.length - 1].d;
+  const out = {{}};
+  for (const g of GNAMES) {{
+    const trades = new Map();
+    let y = +first.slice(0, 4), m = +first.slice(5, 7) - 1;
+    while (new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10) <= last) {{
+      for (const day of GROUP_DAYS[g]) {{
+        const dt = new Date(Date.UTC(y, m, day));
+        if (dt.getUTCMonth() !== m) continue;
+        const target = dt.toISOString().slice(0, 10);
+        if (target < first || target > last) continue;
+        let lo = 0, hi = daily.length - 1;
+        while (lo < hi) {{
+          const mid = (lo + hi) >> 1;
+          if (daily[mid].d < target) lo = mid + 1; else hi = mid;
+        }}
+        const t = daily[lo];
+        if (trades.has(t.d)) trades.get(t.d).n += 1;
+        else trades.set(t.d, {{ d: t.d, p: t.p, n: 1 }});
+      }}
+      m += 1;
+      if (m === 12) {{ m = 0; y += 1; }}
+    }}
+    out[g] = [...trades.values()];
+  }}
+  return scheduleCache[etf.id] = out;
 }}
-
-document.getElementById('btn-select-etf').addEventListener('click', () => applyTypeFilter('etf'));
-document.getElementById('btn-select-leveraged').addEventListener('click', () => applyTypeFilter('leveraged'));
-document.getElementById('btn-select-us-leveraged').addEventListener('click', () => applyTypeFilter('us_leveraged'));
-document.getElementById('btn-select-all-leveraged').addEventListener('click', () => {{
-  const ids = allETFIds.filter(id => ['leveraged','us_leveraged'].includes(ETF_DB[id].type));
-  if (!ids.length) return;
-  selectedETFs = [...ids];
-  if (!selectedETFs.includes(focusETF)) focusETF = selectedETFs[0];
-  document.querySelectorAll('.etf-check-item').forEach(item => {{
-    const id = item.dataset.id;
-    const cb = item.querySelector('input');
-    const checked = selectedETFs.includes(id);
-    cb.checked = checked;
-    item.classList.toggle('checked', checked);
-  }});
-  syncSelectAllBtn();
-  render();
-}});
-document.getElementById('btn-select-stock').addEventListener('click', () => applyTypeFilter('stock'));
 
 // ════════════════════════════════════════════════════════════════
 //  資料篩選（依年數）
 // ════════════════════════════════════════════════════════════════
+const sliceCache = {{}};
 function sliceETF(etfId, years) {{
+  const key = etfId + '|' + years;
+  if (sliceCache[key]) return sliceCache[key];
   const etf     = ETF_DB[etfId];
   const latestD = etf.daily[etf.daily.length - 1].d;
   const cutTs   = new Date(latestD).getTime() - years * 365.25 * 86400 * 1000;
   const cutD    = new Date(cutTs).toISOString().slice(0,10);
   const daily   = etf.daily.filter(d => d.d >= cutD);
+  const schedules = getSchedules(etf);
   const sched   = {{}};
-  for (const g of GNAMES) {{
-    sched[g] = (etf.schedules[g] || []).filter(t => t.d >= cutD);
-  }}
+  for (const g of GNAMES) sched[g] = schedules[g].filter(t => t.d >= cutD);
   const actualYears = (new Date(latestD) - new Date(daily[0].d)) / (365.25*86400*1000);
-  return {{ daily, sched, actualYears, latestD, startD: daily[0].d }};
+  return sliceCache[key] = {{ daily, sched, actualYears, latestD, startD: daily[0].d }};
 }}
 
 // ════════════════════════════════════════════════════════════════
-//  風險指標（以標的本身日報酬率計算）
+//  風險指標（以標的本身日報酬率計算，與扣款日、投資方式無關）
 // ════════════════════════════════════════════════════════════════
 const RF = 1.5; // 無風險利率（台灣1年期定存 %）
+const MIN_ANNUALIZE_YEARS = 0.95; // 未滿一年不年化，短期年化會放大成誤導數字
 
-function calcRiskMetrics(daily, cagr) {{
-  if (daily.length < 60) return {{ vol: null, sharpe: null, sortino: null }};
+function calcRiskMetrics(slice) {{
+  if (slice.risk) return slice.risk;
+  const daily = slice.daily;
+  if (daily.length < 60) return slice.risk = {{ vol: null, sharpe: null, sortino: null }};
   const rets = [];
-  for (let i = 1; i < daily.length; i++) {{
-    if (daily[i-1].p > 0) rets.push(Math.log(daily[i].p / daily[i-1].p) * 100);
-  }}
-  if (rets.length < 20) return {{ vol: null, sharpe: null, sortino: null }};
-  const mean = rets.reduce((a,b) => a+b, 0) / rets.length;
-  const variance = rets.reduce((a,b) => a + (b-mean)**2, 0) / rets.length;
+  for (let i = 1; i < daily.length; i++) rets.push(daily[i].p / daily[i-1].p - 1);
+  const n = rets.length;
+  const mean = rets.reduce((a,b) => a+b, 0) / n;
+  const variance = rets.reduce((a,b) => a + (b-mean)**2, 0) / (n - 1);
+  const dailyRf = RF / 100 / 252;
+  // Sortino 的分母要除以全部天數；只除下跌天數會高估下行風險
+  const downVar = rets.reduce((a,b) => a + Math.min(b - dailyRf, 0)**2, 0) / n;
+  const annExcess = (mean - dailyRf) * 252;
   const vol = Math.sqrt(variance * 252);
-  const downRets = rets.filter(r => r < 0);
-  const downVariance = downRets.length > 0
-    ? downRets.reduce((a,b) => a + b*b, 0) / downRets.length : 0;
-  const downVol = Math.sqrt(downVariance * 252);
-  const sharpe  = vol     > 0 ? (cagr - RF) / vol     : null;
-  const sortino = downVol > 0 ? (cagr - RF) / downVol : null;
-  return {{ vol, sharpe, sortino }};
+  const downVol = Math.sqrt(downVar * 252);
+  return slice.risk = {{
+    vol: vol * 100,
+    sharpe:  vol     > 0 ? annExcess / vol     : null,
+    sortino: downVol > 0 ? annExcess / downVol : null,
+  }};
+}}
+
+// 資金加權年化報酬：DCA 的錢是分批投入，不能用「終值/總成本」對整段期間開根號
+function xirr(flows) {{
+  const npv = r => flows.reduce((s, [t, c]) => s + c * Math.pow(1 + r, -t), 0);
+  let lo = -0.9999, hi = 10;
+  while (npv(hi) > 0 && hi < 1e6) hi *= 10;
+  for (let i = 0; i < 50; i++) {{
+    const mid = (lo + hi) / 2;
+    if (npv(mid) > 0) lo = mid; else hi = mid;
+  }}
+  return (lo + hi) / 2 * 100;
 }}
 
 // ════════════════════════════════════════════════════════════════
 //  DCA 計算
 // ════════════════════════════════════════════════════════════════
-function runDCA(schedule, daily, finalPrice, amtPerTrade, actualYears) {{
+function runDCA(group, slice, finalPrice, totalAmount) {{
+  const {{ daily, actualYears, latestD }} = slice;
+  const schedule = slice.sched[group];
+  const trades = schedule.reduce((s,t)=>s+t.n, 0);
+  // 每組扣款次數不同（31 日只有大月才有），以實際次數均分，確保總投入等於使用者輸入
+  const amtPerTrade = trades > 0 ? totalAmount / trades : 0;
   const tradeMap = {{}};
-  for (const t of schedule) tradeMap[t.d] = {{ p: t.p, n: t.n }};
+  for (const t of schedule) tradeMap[t.d] = t;
 
   let cumShares=0, cumCost=0;
   const mv=[], cc=[];
   for (const day of daily) {{
-    if (tradeMap[day.d]) {{
-      const t = tradeMap[day.d];
+    const t = tradeMap[day.d];
+    if (t) {{
       cumShares += (amtPerTrade * t.n) / t.p;
       cumCost   += amtPerTrade * t.n;
     }}
@@ -818,27 +859,37 @@ function runDCA(schedule, daily, finalPrice, amtPerTrade, actualYears) {{
   }}
   const totalCost  = cumCost;
   const finalValue = cumShares * finalPrice;
-  const returnPct  = (finalValue - totalCost) / totalCost * 100;
-  const cagr       = actualYears > 0.1
-    ? (Math.pow(finalValue/totalCost, 1/actualYears)-1)*100 : 0;
+  const returnPct  = totalCost > 0 ? (finalValue - totalCost) / totalCost * 100 : 0;
+  let cagr = null;
+  if (actualYears >= MIN_ANNUALIZE_YEARS && totalCost > 0) {{
+    const startTs = Date.parse(schedule[0].d);
+    const yrs = d => (Date.parse(d) - startTs) / (365.25 * 864e5);
+    const flows = schedule.map(t => [yrs(t.d), -amtPerTrade * t.n]);
+    flows.push([yrs(latestD), finalValue]);
+    cagr = xirr(flows);
+  }}
   // 最大回撤：基於「累積報酬率」的回撤，避免 DCA 注資掩蓋真實跌幅
   let peakRet=-Infinity, maxDD=0;
   for (let i=0; i<mv.length; i++) {{
-    const ret = cc[i] > 0 ? (mv[i] - cc[i]) / cc[i] * 100 : 0;
+    if (cc[i] <= 0) continue;
+    const ret = (mv[i] - cc[i]) / cc[i] * 100;
     if (ret > peakRet) peakRet = ret;
-    const dd = peakRet > -100 ? (ret - peakRet) / (1 + peakRet/100) : 0;
+    const dd = (ret - peakRet) / (1 + peakRet/100);
     if (dd < maxDD) maxDD = dd;
   }}
-  const trades = schedule.reduce((s,t)=>s+t.n, 0);
   const avgCost = cumShares > 0 ? totalCost/cumShares : 0;
-  const {{ vol, sharpe, sortino }} = calcRiskMetrics(daily, cagr);
   return {{ trades, totalCost, shares: cumShares, avgCost, finalValue,
-            returnPct, cagr, maxDrawdown: maxDD, mv, cc, vol, sharpe, sortino }};
+            returnPct, cagr, maxDrawdown: maxDD, mv, cc, ...calcRiskMetrics(slice) }};
 }}
 
 // ════════════════════════════════════════════════════════════════
 //  Chart 工廠
 // ════════════════════════════════════════════════════════════════
+const thinFilter = n => {{
+  const step = Math.max(1, Math.ceil(n / 600));
+  return i => i % step === 0 || i === n - 1;
+}};
+
 function makeBar(id, labels, datasets, fmtFn) {{
   return new Chart(document.getElementById(id), {{
     type:'bar',
@@ -930,11 +981,12 @@ function updateGroupCurveChart(results) {{
   const etfRes = results[focusETF];
   if (!etfRes) return;
   const {{ daily }} = sliceETF(focusETF, currentYears);
-  const labels = daily.map(d=>d.d);
+  const keep = thinFilter(daily.length);
+  const labels = daily.map(d=>d.d).filter((_, i) => keep(i));
   const datasets = [
     ...GNAMES.map((g,i) => ({{
       label: g,
-      data:  etfRes[g].mv,
+      data:  etfRes[g].mv.filter((_, i2) => keep(i2)),
       borderColor: GROUP_COLORS[i],
       backgroundColor:'transparent',
       borderWidth:2, pointRadius:0, tension:.2,
@@ -942,7 +994,7 @@ function updateGroupCurveChart(results) {{
     }})),
     {{
       label:'累積投入成本',
-      data: etfRes[GNAMES[0]].cc,
+      data: etfRes[GNAMES[0]].cc.filter((_, i) => keep(i)),
       borderColor:'#475569',backgroundColor:'transparent',
       borderDash:[5,5],borderWidth:1.5,pointRadius:0,
     }},
@@ -994,23 +1046,6 @@ function renderLumpTableCharts(lumpRes, activeIds, dcaResults, dcaBestPerETF) {{
       '</tr>';
   }}).join('');
 
-  // Bar charts
-  const barBg = lumpIds.map(id => ETF_COLORS[id] || '#888');
-  function updateBarL(chart, data, fmtFn, colors) {{
-    chart.data.labels   = lumpIds;
-    chart.data.datasets = [{{ data, backgroundColor: colors || barBg, borderRadius:6, borderSkipped:false }}];
-    chart.options.scales.y.ticks.callback = fmtFn;
-    chart.options.plugins.tooltip.callbacks.label = c => ' ' + fmtFn(c.raw);
-    chart.update('none');
-  }}
-  updateBarL(chartBestReturn, lumpIds.map(id=>lumpRes[id].returnPct), v=>v.toFixed(2)+'%');
-  updateBarL(chartBestCagr,   lumpIds.map(id=>lumpRes[id].cagr),      v=>v.toFixed(2)+'%');
-  updateBarL(chartBestDD,     lumpIds.map(id=>lumpRes[id].maxDrawdown),v=>v.toFixed(2)+'%',
-    lumpIds.map(id=>{{ const dd=lumpRes[id].maxDrawdown; return dd>-15?'#22c55e':dd>-30?'#f59e0b':'#ef4444'; }}));
-  chartGroupDist.data.datasets  = []; chartGroupDist.update('none');
-  chartCurveBest.data.datasets  = []; chartCurveBest.update('none');
-  chartCurveGroups.data.datasets= []; chartCurveGroups.update('none');
-
   // 結論
   const best = lumpIds[0];
   const br   = lumpRes[best];
@@ -1051,6 +1086,118 @@ function renderLumpTableCharts(lumpRes, activeIds, dcaResults, dcaBestPerETF) {{
 }}
 
 
+// ════════════════════════════════════════════════════════════════
+//  圖表繪製（區塊收合時不畫，展開才畫）
+// ════════════════════════════════════════════════════════════════
+function updateBarChart(chart, labels, data, fmtFn, colors) {{
+  chart.data.labels = labels;
+  chart.data.datasets = [{{ data, backgroundColor: colors, borderRadius:6, borderSkipped:false }}];
+  chart.options.scales.y.ticks.callback = fmtFn;
+  chart.options.plugins.tooltip.callbacks.label = c => ' ' + fmtFn(c.raw);
+  chart.update('none');
+}}
+const pctTick = v => v.toFixed(2) + '%';
+const ddColor = dd => dd > -15 ? '#22c55e' : dd > -30 ? '#f59e0b' : '#ef4444';
+
+// 各標的交易日不同（台股 vs 美股、上市日不同），須依日期對齊，不可依位置補空值
+function renderBestCurves(ids, getSeries) {{
+  const series = ids.map(getSeries);
+  const allDates = [...new Set(series.flatMap(s => s.dates))].sort();
+  const keep = thinFilter(allDates.length);
+  const labels = allDates.filter((_, i) => keep(i));
+  chartCurveBest.data.labels = labels;
+  chartCurveBest.data.datasets = ids.map((id, n) => {{
+    const byDate = new Map(series[n].dates.map((d, i) => [d, series[n].values[i]]));
+    return {{
+      label: series[n].label,
+      data:  labels.map(d => byDate.has(d) ? byDate.get(d) : null),
+      borderColor: ETF_COLORS[id] || '#888',
+      backgroundColor: 'transparent',
+      borderWidth: 2.2, pointRadius: 0, tension: .2,
+      spanGaps: true,
+      hidden: false,
+    }};
+  }});
+  chartCurveBest.update('none');
+
+  const bestTabRow = document.getElementById('best-curve-tabs');
+  bestTabRow.innerHTML = '';
+  const allBtn = document.createElement('button');
+  allBtn.className = 'tab-btn active';
+  allBtn.textContent = '全部';
+  allBtn.onclick = () => {{
+    const anyHidden = chartCurveBest.data.datasets.some(ds => ds.hidden);
+    chartCurveBest.data.datasets.forEach(ds => ds.hidden = !anyHidden);
+    chartCurveBest.update('none');
+    bestTabRow.querySelectorAll('.tab-btn[data-etf]').forEach(b => b.classList.toggle('active', anyHidden));
+    allBtn.classList.toggle('active', anyHidden);
+  }};
+  bestTabRow.appendChild(allBtn);
+  ids.forEach((id, i) => {{
+    const btn = document.createElement('button');
+    btn.className   = 'tab-btn active';
+    btn.dataset.etf = id;
+    btn.style.borderLeft = `3px solid ${{ETF_COLORS[id] || '#888'}}`;
+    btn.textContent = id;
+    btn.onclick = () => {{
+      const ds = chartCurveBest.data.datasets[i];
+      ds.hidden = !ds.hidden;
+      btn.classList.toggle('active', !ds.hidden);
+      allBtn.classList.toggle('active', chartCurveBest.data.datasets.every(d => !d.hidden));
+      chartCurveBest.update('none');
+    }};
+    bestTabRow.appendChild(btn);
+  }});
+}}
+
+function drawLumpCharts({{ lumpRes, activeIds }}) {{
+  const ids = [...activeIds].filter(id => lumpRes[id]).sort((a,b) => lumpRes[b].returnPct - lumpRes[a].returnPct);
+  if (!ids.length) return;
+  const colors = ids.map(id => ETF_COLORS[id] || '#888');
+  updateBarChart(chartBestReturn, ids, ids.map(id=>lumpRes[id].returnPct), pctTick, colors);
+  updateBarChart(chartBestCagr,   ids, ids.map(id=>lumpRes[id].cagr), pctTick, colors);
+  updateBarChart(chartBestDD,     ids, ids.map(id=>lumpRes[id].maxDrawdown), pctTick,
+    ids.map(id => ddColor(lumpRes[id].maxDrawdown)));
+  renderBestCurves(ids, id => {{
+    const {{ daily }} = sliceETF(id, currentYears);
+    return {{ label: id, dates: daily.map(d => d.d), values: daily.map(d => lumpRes[id].shares * d.p) }};
+  }});
+}}
+
+function drawDcaCharts({{ results, bestPerETF, activeIds }}) {{
+  if (!activeIds.length) return;
+  const colors = activeIds.map(id => ETF_COLORS[id] || '#888');
+  const best = id => results[id][bestPerETF[id]];
+  updateBarChart(chartBestReturn, activeIds, activeIds.map(id=>best(id).returnPct), pctTick, colors);
+  updateBarChart(chartBestCagr,   activeIds, activeIds.map(id=>best(id).cagr), pctTick, colors);
+  updateBarChart(chartBestDD,     activeIds, activeIds.map(id=>best(id).maxDrawdown), pctTick,
+    activeIds.map(id => ddColor(best(id).maxDrawdown)));
+
+  chartGroupDist.data.labels = activeIds;
+  chartGroupDist.data.datasets = GNAMES.map((g,i) => ({{
+    label: g,
+    data: activeIds.map(id => results[id]?.[g]?.returnPct ?? 0),
+    backgroundColor: GROUP_COLORS[i]+'bb',
+    borderRadius:4, borderSkipped:false,
+  }}));
+  chartGroupDist.options.scales.y.ticks.callback = v=>v.toFixed(1)+'%';
+  chartGroupDist.update('none');
+
+  renderBestCurves(activeIds, id => {{
+    const {{ daily }} = sliceETF(id, currentYears);
+    return {{ label: id + ' (' + bestPerETF[id] + ')', dates: daily.map(d => d.d), values: best(id).mv }};
+  }});
+  rebuildGroupCurveTabs(results);
+  updateGroupCurveChart(results);
+}}
+
+let chartCtx = null;
+function drawChartsIfOpen() {{
+  if (!chartCtx || document.getElementById('sec-charts').classList.contains('collapsed')) return;
+  if (chartCtx.mode === 'lump') drawLumpCharts(chartCtx); else drawDcaCharts(chartCtx);
+  chartCtx = null;
+}}
+
 function render() {{
   // ── 計算 DCA 結果 ────────────────────────────────────────────
   const results = {{}};
@@ -1058,13 +1205,11 @@ function render() {{
 
   for (const id of selectedETFs) {{
     const etf = ETF_DB[id];
-    const maxYrs = Math.min(currentYears, etf.dataYears);
-    if (maxYrs < 0.08) continue;
-    const {{ daily, sched, actualYears }} = sliceETF(id, maxYrs);
-    if (daily.length < 5) continue;
+    const slice = sliceETF(id, currentYears);
+    if (slice.daily.length < 5) continue;
     results[id] = {{}};
     for (const g of GNAMES) {{
-      results[id][g] = runDCA(sched[g], daily, etf.finalPrice, currentAmt, actualYears);
+      results[id][g] = runDCA(g, slice, etf.finalPrice, currentTotal);
     }}
     bestPerETF[id] = GNAMES.reduce((a,b) => results[id][a].returnPct > results[id][b].returnPct ? a : b);
   }}
@@ -1076,9 +1221,7 @@ function render() {{
   const lumpRes = {{}};
   for (const id of activeIds) {{
     const etf = ETF_DB[id];
-    const maxYrs = Math.min(currentYears, etf.dataYears);
-    const {{ daily, actualYears }} = sliceETF(id, maxYrs);
-    const r = calcLumpSum(daily, etf.finalPrice, currentTotal, actualYears);
+    const r = calcLumpSum(sliceETF(id, currentYears), etf.finalPrice, currentTotal);
     if (r) lumpRes[id] = r;
   }}
 
@@ -1106,7 +1249,7 @@ function render() {{
     const stockClass = id==='2330' ? ' kpi-stock-red' : id==='2454' ? ' kpi-stock-blue' : id==='2308' ? ' kpi-stock-green' : '';
     return '<div class="kpi' + stockClass + '">' +
       '<div class="val ' + primC + '">' + FMTP(primRet) + '</div>' +
-      '<div class="lbl">' + id + ' ' + primLbl + '</div>' +
+      '<div class="lbl">' + id + ' ' + primLbl + shortTag(id) + '</div>' +
       '<div style="margin-top:.22rem;padding-top:.22rem;border-top:1px solid var(--border)">' +
       '<div class="val ' + secC + '" style="font-size:.92rem">' + FMTP(secRet) + '</div>' +
       '<div class="lbl">' + secLbl + '</div>' +
@@ -1118,6 +1261,8 @@ function render() {{
     renderLumpTableCharts(lumpRes, activeIds, results, bestPerETF);
     lastResults = results; lastBestPerETF = bestPerETF;
     renderLayoutTable();
+    chartCtx = {{ mode: 'lump', lumpRes, activeIds }};
+    drawChartsIfOpen();
     return;
   }}
 
@@ -1166,119 +1311,6 @@ function render() {{
   if (thEls.length >= 3) {{ thEls[1].textContent='組合'; thEls[2].textContent='扣款日'; }}
   tbody.innerHTML = rows.join('');
 
-  // ── 最佳組合 Bar charts ──────────────────────────────────────
-  const barLabels = activeIds.map(id => id);
-  const barBgBest = activeIds.map(id => ETF_COLORS[id]||'#888');
-
-  function updateBar(chart, data, fmtFn, highlight) {{
-    chart.data.labels = barLabels;
-    chart.data.datasets = [{{
-      data,
-      backgroundColor: highlight || barBgBest,
-      borderRadius:6, borderSkipped:false,
-    }}];
-    chart.options.scales.y.ticks.callback = fmtFn;
-    chart.options.plugins.tooltip.callbacks.label = c=>' '+fmtFn(c.raw);
-    chart.update('none');
-  }}
-
-  updateBar(chartBestReturn,
-    activeIds.map(id=>results[id][bestPerETF[id]].returnPct),
-    v=>v.toFixed(2)+'%');
-  updateBar(chartBestCagr,
-    activeIds.map(id=>results[id][bestPerETF[id]].cagr),
-    v=>v.toFixed(2)+'%');
-  updateBar(chartBestDD,
-    activeIds.map(id=>results[id][bestPerETF[id]].maxDrawdown),
-    v=>v.toFixed(2)+'%',
-    activeIds.map(id=>{{
-      const dd = results[id][bestPerETF[id]].maxDrawdown;
-      return dd > -15 ? '#22c55e' : dd > -30 ? '#f59e0b' : '#ef4444';
-    }}));
-
-  // 五組分布（grouped bar）
-  chartGroupDist.data.labels = activeIds;
-  chartGroupDist.data.datasets = GNAMES.map((g,i) => ({{
-    label: g,
-    data: activeIds.map(id => results[id]?.[g]?.returnPct ?? 0),
-    backgroundColor: GROUP_COLORS[i]+'bb',
-    borderRadius:4, borderSkipped:false,
-  }}));
-  chartGroupDist.options.scales.y.ticks.callback = v=>v.toFixed(1)+'%';
-  chartGroupDist.update('none');
-
-  // ── 最佳組合成長曲線（可複選）────────────────────────────────
-  {{
-    // 取最長 ETF 作 x 軸基準
-    const refId = activeIds.reduce((a,b) => {{
-      const al = sliceETF(a, Math.min(currentYears, ETF_DB[a].dataYears)).daily.length;
-      const bl = sliceETF(b, Math.min(currentYears, ETF_DB[b].dataYears)).daily.length;
-      return al >= bl ? a : b;
-    }});
-    const {{ daily:refDaily }} = sliceETF(refId, Math.min(currentYears, ETF_DB[refId].dataYears));
-
-    chartCurveBest.data.labels = refDaily.map(d => d.d);
-    chartCurveBest.data.datasets = activeIds.map(id => {{
-      const {{ daily }} = sliceETF(id, Math.min(currentYears, ETF_DB[id].dataYears));
-      const bg  = bestPerETF[id];
-      const pad = refDaily.length - daily.length;
-      return {{
-        label: id + ' (' + bg + ')',
-        data:  [...Array(pad).fill(null), ...results[id][bg].mv],
-        borderColor: ETF_COLORS[id] || '#888',
-        backgroundColor: 'transparent',
-        borderWidth: 2.2, pointRadius: 0, tension: .2,
-        spanGaps: false,
-        hidden: false,
-      }};
-    }});
-    chartCurveBest.update('none');
-
-    // 複選 toggle 按鈕（每次 render 重建）
-    const bestTabRow = document.getElementById('best-curve-tabs');
-    bestTabRow.innerHTML = '';
-
-    // 全選 / 全消
-    const allBtn = document.createElement('button');
-    allBtn.className = 'tab-btn active';
-    allBtn.textContent = '全部';
-    allBtn.onclick = () => {{
-      const anyHidden = chartCurveBest.data.datasets.some(ds => ds.hidden);
-      chartCurveBest.data.datasets.forEach(ds => ds.hidden = !anyHidden);
-      chartCurveBest.update('none');
-      // 同步各 ETF 按鈕狀態
-      bestTabRow.querySelectorAll('.tab-btn[data-etf]').forEach(b => {{
-        b.classList.toggle('active', !anyHidden);
-      }});
-      allBtn.classList.toggle('active', !anyHidden);
-    }};
-    bestTabRow.appendChild(allBtn);
-
-    // 各 ETF 按鈕
-    activeIds.forEach((id, i) => {{
-      const color = ETF_COLORS[id] || '#888';
-      const btn   = document.createElement('button');
-      btn.className   = 'tab-btn active';
-      btn.dataset.etf = id;
-      btn.style.borderLeft = `3px solid ${{color}}`;
-      btn.textContent = id;
-      btn.onclick = () => {{
-        const ds = chartCurveBest.data.datasets[i];
-        ds.hidden = !ds.hidden;
-        btn.classList.toggle('active', !ds.hidden);
-        // 全部顯示時同步全選按鈕
-        const allVisible = chartCurveBest.data.datasets.every(d => !d.hidden);
-        allBtn.classList.toggle('active', allVisible);
-        chartCurveBest.update('none');
-      }};
-      bestTabRow.appendChild(btn);
-    }});
-  }}
-
-  // ── 單一 ETF 五組曲線 ────────────────────────────────────────
-  rebuildGroupCurveTabs(results);
-  updateGroupCurveChart(results);
-
   // ── 結論 ────────────────────────────────────────────────────
   const best  = activeIds.reduce((a,b)=>
     results[a][bestPerETF[a]].returnPct > results[b][bestPerETF[b]].returnPct ? a : b);
@@ -1323,15 +1355,23 @@ function render() {{
   // 次優標籤 helper
   const runner = (id, r, lines) => id ? `
     <div style="margin-top:.7rem;padding-top:.6rem;border-top:1px solid var(--border);opacity:.82">
-      <p style="font-size:.74rem;color:var(--muted);margin-bottom:.2rem">🥈 次優　<span class="hl" style="font-size:.82rem">${{ETF_DB[id].name}}</span>
+      <p style="font-size:.74rem;color:var(--muted);margin-bottom:.2rem">🥈 次優　<span class="hl" style="font-size:.82rem">${{nameOf(id)}}</span>
         <span style="font-size:.72rem;color:var(--muted);margin-left:.3rem">${{DAYS_LABEL[bestPerETF[id]]}}</span></p>
       <ul style="font-size:.78rem;color:var(--muted)">${{lines}}</ul>
     </div>` : '';
 
+  const spreads = activeIds.map(id => {{
+    const v = GNAMES.map(g => results[id][g].returnPct);
+    return Math.max(...v) - Math.min(...v);
+  }});
+  const avgSpread = spreads.reduce((a,b) => a+b, 0) / spreads.length;
+  const wins = Object.fromEntries(GNAMES.map(g => [g, activeIds.filter(id => bestPerETF[id] === g).length]));
+  const topGroup = GNAMES.reduce((a,b) => wins[a] >= wins[b] ? a : b);
+
   document.getElementById('conclusion').innerHTML = [
     {{
       t:'🏆 最佳報酬標的',
-      h:`<p>標的：<span class="hl">${{ETF_DB[best].name}}</span></p>
+      h:`<p>標的：<span class="hl">${{nameOf(best)}}</span></p>
          <p style="margin-top:.3rem">最佳扣款組合：<span class="hl">${{bestPerETF[best]}}（${{DAYS_LABEL[bestPerETF[best]]}}）</span></p>
          <ul style="margin-top:.5rem">
            <li>總報酬：<span class="${{bestR.returnPct>=0?'gr':'rd'}} hl">${{FMTP(bestR.returnPct)}}</span></li>
@@ -1351,7 +1391,7 @@ function render() {{
     }},
     {{
       t:'🛡️ 最低回撤標的',
-      h:`<p>標的：<span class="hl">${{ETF_DB[safe].name}}</span></p>
+      h:`<p>標的：<span class="hl">${{nameOf(safe)}}</span></p>
          <p style="margin-top:.3rem">最佳扣款組合：<span class="hl">${{bestPerETF[safe]}}（${{DAYS_LABEL[bestPerETF[safe]]}}）</span></p>
          <ul style="margin-top:.5rem">
            <li>最大回撤：<span class="hl">${{safeR.maxDrawdown.toFixed(2)}}%</span></li>
@@ -1365,7 +1405,7 @@ function render() {{
     }},
     ...(sharpR ? [{{
       t:'⚡ 最佳夏普標的',
-      h:`<p>標的：<span class="hl">${{ETF_DB[sharp].name}}</span></p>
+      h:`<p>標的：<span class="hl">${{nameOf(sharp)}}</span></p>
          <p style="margin-top:.3rem">最佳扣款組合：<span class="hl">${{bestPerETF[sharp]}}（${{DAYS_LABEL[bestPerETF[sharp]]}}）</span></p>
          <ul style="margin-top:.5rem">
            <li>夏普比率：<span class="hl">${{sharpR.sharpe.toFixed(2)}}</span></li>
@@ -1382,7 +1422,7 @@ function render() {{
     }}] : []),
     ...(sortinoR ? [{{
       t:'🎯 最佳Sortino標的',
-      h:`<p>標的：<span class="hl">${{ETF_DB[sortino].name}}</span></p>
+      h:`<p>標的：<span class="hl">${{nameOf(sortino)}}</span></p>
          <p style="margin-top:.3rem">最佳扣款組合：<span class="hl">${{bestPerETF[sortino]}}（${{DAYS_LABEL[bestPerETF[sortino]]}}）</span></p>
          <ul style="margin-top:.5rem">
            <li>Sortino Ratio：<span class="hl">${{sortinoR.sortino.toFixed(2)}}</span></li>
@@ -1400,15 +1440,15 @@ function render() {{
     {{
       t:'📅 扣款日效應',
       h:`<ul>
-           <li>各組扣款日報酬差距普遍 <span class="hl">< 2%</span>，時機影響有限</li>
-           <li>定期定額透過時間分散已大幅降低進場時機風險</li>
-           <li>月中偏前（4/9…）在多數標的略優，可能反映台股<span class="hl">月初換手效應</span></li>
+           <li>本次五組扣款日報酬平均差距：<span class="hl">${{avgSpread.toFixed(2)}}%</span></li>
+           <li>最常勝出：<span class="hl">${{topGroup}}（${{DAYS_LABEL[topGroup]}}）</span>，${{wins[topGroup]}} / ${{activeIds.length}} 檔</li>
+           <li>勝出組合會隨期間改變，不代表未來也較佳；上方「最佳」皆取事後最佳的扣款組合</li>
          </ul>`
     }},
     {{
       t:'💡 實務建議',
       h:`<ul>
-           <li>資料期間較短（< 1年）的標的 CAGR 參考性較低</li>
+           <li>標示 <span class="hl">⚠</span> 的標的資料長度不足所選期間，報酬率的比較基準不同</li>
            <li>建議以 <span class="hl">3年以上</span> 回測結果作為主要參考</li>
            <li>多標的分散持有可進一步降低單一 ETF 風險</li>
            <li>歷史績效不代表未來；建議長期持有、定期再平衡</li>
@@ -1420,6 +1460,8 @@ function render() {{
   lastResults    = results;
   lastBestPerETF = bestPerETF;
   renderLayoutTable();
+  chartCtx = {{ mode: 'dca', results, bestPerETF, activeIds }};
+  drawChartsIfOpen();
 }}
 
 // ════════════════════════════════════════════════════════════════
@@ -1441,6 +1483,7 @@ document.getElementById('invest-total').addEventListener('input', e => {{
   debounce = setTimeout(() => {{
     const v = parseInt(e.target.value, 10);
     if (v >= 1000) {{ currentTotal = v; calcPerTrade(); render(); }}
+    else showToast('總投入資金最低 NT$ 1,000');
   }}, 300);
 }});
 
@@ -1461,6 +1504,7 @@ document.querySelectorAll('.section-title[data-sec]').forEach(title => {{
     const closing = !title.classList.contains('collapsed');
     title.classList.toggle('collapsed', closing);
     body.classList.toggle('collapsed', closing);
+    if (!closing) drawChartsIfOpen();
   }});
 }});
 
@@ -1489,13 +1533,17 @@ function applyChartTheme(isLight) {{
   }});
 }}
 
+function toggleTheme() {{
+  const isLight = document.body.classList.toggle('light');
+  applyChartTheme(isLight);
+  document.getElementById('btn-theme').textContent = isLight ? '🌙 暗色' : '☀️ 亮色';
+  showToast(isLight ? '☀️ 亮色模式' : '🌙 暗色模式');
+}}
+document.getElementById('btn-theme').addEventListener('click', toggleTheme);
+
 document.addEventListener('keydown', e => {{
   if (e.target.tagName === 'INPUT') return;
-  if (e.key === 'l' || e.key === 'L') {{
-    const isLight = document.body.classList.toggle('light');
-    applyChartTheme(isLight);
-    showToast(isLight ? '☀️ 亮色模式' : '🌙 暗色模式');
-  }}
+  if (e.key === 'l' || e.key === 'L') toggleTheme();
   if (e.key === 'f' || e.key === 'F') {{
     if (!document.fullscreenElement) {{
       document.documentElement.requestFullscreen().catch(()=>{{}});
@@ -1547,7 +1595,7 @@ function renderLayoutTable() {{
   html += '<thead>';
 
   // 第一行：欄位名稱
-  html += '<tr style="background:#232636">';
+  html += '<tr style="background:var(--border)">';
   html += '<th style="' + TH + ';text-align:left">月份</th>';
   html += '<th style="' + TH + ';text-align:left">市場邏輯</th>';
   html += '<th style="' + TH + ';text-align:right">投入占比</th>';
@@ -1559,7 +1607,7 @@ function renderLayoutTable() {{
   html += '</tr>';
 
   // 第二行：績效配重
-  html += '<tr style="background:#1a1d27">';
+  html += '<tr style="background:var(--card)">';
   html += '<td style="padding:.2rem .75rem;font-size:.7rem;color:var(--muted)" colspan="4">績效配重</td>';
   for (const etf of ETFS) {{
     const col  = ETF_COLORS[etf] || '#888';
@@ -1601,7 +1649,7 @@ function renderLayoutTable() {{
   }}
 
   // ── 合計列 ──────────────────────────────────────────────────
-  html += '<tr style="background:#232636;font-weight:700;border-top:2px solid var(--border)">';
+  html += '<tr style="background:var(--border);font-weight:700;border-top:2px solid var(--border)">';
   html += '<td style="padding:.45rem .75rem">合計</td>';
   html += '<td style="padding:.45rem .75rem;color:var(--muted)">5個月完成佈局</td>';
   html += '<td style="padding:.45rem .75rem;text-align:right;color:var(--accent)">100%</td>';
@@ -1622,7 +1670,10 @@ function renderLayoutTable() {{
 
 // 首次渲染（預設：1年 + ETF）
 calcPerTrade();
-document.getElementById('btn-select-etf').classList.add('active');
+syncToggleUI();
+const ends = Object.values(ETF_DB).map(e => e.endDate).sort();
+document.getElementById('data-date').textContent = ends[0] === ends[ends.length - 1]
+  ? `資料截至 ${{ends[0]}}` : `資料截至 ${{ends[ends.length - 1]}}（部分標的至 ${{ends[0]}}）`;
 render(); // render() 末尾會呼叫 renderLayoutTable()
 </script>
 </body>

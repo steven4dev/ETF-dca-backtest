@@ -10,12 +10,14 @@ import time
 import yfinance as yf
 import pandas as pd
 from pathlib import Path
-from datetime import date, timedelta
+from datetime import timedelta
 
 # ── 設定 ────────────────────────────────────────────────────────
 START_DATE  = '2015-01-01'
-START_10Y   = (date.today() - timedelta(days=10 * 366)).strftime('%Y-%m-%d')
-END_DATE   = None   # None = 今日
+END_DATE    = None   # None = 今日
+RETRY_WAITS = (3, 10, 30)
+TW_CLOSE_UTC = timedelta(hours=6, minutes=30)   # 台股 14:30 後視為收盤資料完整
+US_CLOSE_UTC = timedelta(hours=21, minutes=30)  # 美股收盤（涵蓋夏令與冬令）
 
 ETF_LIST = {
     '0050':   '0050.TW',
@@ -51,12 +53,14 @@ OUTPUT_DIR = Path('.')
 
 
 def download_one(ticker: str) -> pd.DataFrame:
-    """下載單一標的，固定日期失敗時自動 fallback 至動態 10 年前。"""
-    df = yf.download(ticker, start=START_DATE, end=END_DATE,
-                     auto_adjust=False, progress=False)
-    if df.empty:
-        df = yf.download(ticker, start=START_10Y, end=END_DATE,
+    """下載單一標的；Yahoo 常暫時回空，退避重試，絕不改抓較短區間。"""
+    df = pd.DataFrame()
+    for wait in RETRY_WAITS:
+        df = yf.download(ticker, start=START_DATE, end=END_DATE,
                          auto_adjust=False, progress=False)
+        if not df.empty:
+            break
+        time.sleep(wait)
     if df.empty:
         raise ValueError('無資料')
 
@@ -70,7 +74,26 @@ def download_one(ticker: str) -> pd.DataFrame:
     if 'Adj Close' not in df.columns:
         raise ValueError(f'缺少 Adj Close，欄位：{list(df.columns)}')
 
-    return df
+    return df.dropna(subset=['Close', 'Adj Close']).reset_index(drop=True)
+
+
+def drop_unfinished(df: pd.DataFrame, close_utc: timedelta) -> pd.DataFrame:
+    """移除尚未收盤的當日資料（盤中價不是收盤價）。"""
+    dates = pd.to_datetime(df['Date'])
+    now = pd.Timestamp.now(tz='UTC').tz_localize(None)
+    return df[dates + close_utc <= now].reset_index(drop=True)
+
+
+def check_not_truncated(df: pd.DataFrame, out: Path) -> None:
+    """新資料若比既有 CSV 短，視為 Yahoo 異常，保留舊檔。"""
+    if not out.exists():
+        return
+    old = pd.read_csv(out, usecols=['Date'], parse_dates=['Date'])['Date']
+    new = pd.to_datetime(df['Date'])
+    if new.min() > old.min() + timedelta(days=7):
+        raise ValueError(f'起始日倒退 {old.min().date()}→{new.min().date()}，保留舊檔')
+    if new.max() < old.max() - timedelta(days=7):
+        raise ValueError(f'結束日倒退 {old.max().date()}→{new.max().date()}，保留舊檔')
 
 
 def download_usdtwd() -> pd.Series:
@@ -98,7 +121,8 @@ if __name__ == '__main__':
         out = OUTPUT_DIR / f'{etf_id}_data.csv'
         print(f'下載 {etf_id} ({ticker}) …', end=' ')
         try:
-            df = download_one(ticker)
+            df = drop_unfinished(download_one(ticker), TW_CLOSE_UTC)
+            check_not_truncated(df, out)
             df.to_csv(out, index=False, encoding='utf-8-sig')
             print(f'{len(df)} 筆  {str(df["Date"].iloc[0])[:10]}~{str(df["Date"].iloc[-1])[:10]}')
             ok += 1
@@ -116,6 +140,7 @@ if __name__ == '__main__':
         except Exception as e:
             print(f'✗ 失敗：{e}，美股將跳過')
             fx = None
+            fail.extend(US_STOCKS)
         time.sleep(1.2)
 
         if fx is not None:
@@ -123,7 +148,8 @@ if __name__ == '__main__':
                 out = OUTPUT_DIR / f'{etf_id}_data.csv'
                 print(f'下載 {etf_id} ({ticker}, USD→TWD) …', end=' ')
                 try:
-                    df = download_one(ticker)
+                    df = drop_unfinished(download_one(ticker), US_CLOSE_UTC)
+                    check_not_truncated(df, out)
                     df['Date'] = pd.to_datetime(df['Date']).dt.normalize()
                     # 對齊匯率
                     df['_fx'] = df['Date'].map(fx).ffill()
@@ -143,5 +169,6 @@ if __name__ == '__main__':
     print(f'\n完成：{ok} 成功 / {len(fail)} 失敗')
     if fail:
         print(f'失敗清單：{fail}')
+        sys.exit(1)
     else:
         print('\n所有 CSV 已更新，請執行：python -X utf8 generate_html.py')
