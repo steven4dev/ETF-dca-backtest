@@ -9,6 +9,8 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='repla
 import pandas as pd
 import numpy as np
 import json
+import subprocess
+from datetime import date
 from pathlib import Path
 
 class NpEncoder(json.JSONEncoder):
@@ -151,6 +153,11 @@ for e in etf_js.values():
         data_warnings.append(f"{e['id']} 資料只到 {e['endDate']}，落後最新資料 {latest_end}")
 for w in data_warnings:
     print('⚠', w)
+
+commits_today = subprocess.run(
+    ['git', 'log', '--oneline', '--since=midnight'],
+    capture_output=True, text=True, encoding='utf-8').stdout.count('\n')
+app_version = f'v{date.today():%Y%m%d}.{commits_today + 1:02d}'
 
 etf_json     = json.dumps(etf_js,      ensure_ascii=False, cls=NpEncoder)
 days_lbl_json = json.dumps(DAYS_LABEL, ensure_ascii=False)
@@ -525,6 +532,8 @@ footer{{
     <div id="layout-wrap"></div>
   </div>
 </div>
+
+<footer style="opacity:.6;font-size:.7rem">{app_version}</footer>
 
 <div id="kb-toast"></div>
 
