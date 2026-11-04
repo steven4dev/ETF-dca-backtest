@@ -640,7 +640,7 @@ let focusGroup    = null;     // null = 全部組合
 // ════════════════════════════════════════════════════════════════
 const etfChecksEl = document.getElementById('etf-checks');
 Object.values(ETF_DB)
-  .sort((a, b) => b.dataYears - a.dataYears || a.id.localeCompare(b.id))
+  .sort((a, b) => a.id.localeCompare(b.id, undefined, {{numeric: true}}))
   .forEach(etf => {{
   const item = document.createElement('div');
   item.className = 'etf-check-item' + (selectedETFs.includes(etf.id) ? ' checked' : '');
